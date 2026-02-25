@@ -15,7 +15,6 @@ router = APIRouter(tags=["Agent"])
 
 _executor = ThreadPoolExecutor(max_workers=4)
 
-
 @router.post("/solve")
 async def solve(payload: SolveRequest, background_tasks: BackgroundTasks):
     if settings.secret and payload.secret != settings.secret:
@@ -24,12 +23,10 @@ async def solve(payload: SolveRequest, background_tasks: BackgroundTasks):
     url_time.clear()
     BASE64_STORE.clear()
     run_counter["total"] += 1
-    os.environ["url"] = payload.url
-    os.environ["offset"] = "0"
-    url_time[payload.url] = time.time()
-    background_tasks.add_task(run_agent, payload.url)
+    
+    # Use task input instead of env vars for better isolation
+    background_tasks.add_task(run_agent, f"Extract data and analyze this URL: {payload.url}")
     return {"status": "ok", "message": "Agent started.", "run_id": run_counter["total"]}
-
 
 @router.post("/agent/run")
 async def run_agent_endpoint(payload: AgentRunRequest):
