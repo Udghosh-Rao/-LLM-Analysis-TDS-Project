@@ -7,21 +7,21 @@ from pydantic import BaseModel, Field
 
 class SolveRequest(BaseModel):
     url: str
-    secret: str
+    secret: str = Field(default="")
 
 
 class FinanceAnalyzeRequest(BaseModel):
     ticker: str = Field(default="AAPL")
     period: str = Field(default="6mo")
     analysis_type: Optional[str] = Field(default="standard")
-    secret: str
+    secret: str = Field(default="")
 
 
 class RiskDetectRequest(BaseModel):
     observation: dict[str, Any]
-    secret: str
+    secret: str = Field(default="")
 
 
 class AgentRunRequest(BaseModel):
     prompt: str
-    secret: str
+    secret: str = Field(default="")
