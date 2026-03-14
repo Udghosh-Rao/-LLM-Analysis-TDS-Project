@@ -26,7 +26,8 @@
     </nav>
 
     <div class="max-w-7xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <div class="lg:col-span-4 space-y-6">
+        <!-- Left Sidebar - Navigation Only -->
+        <div class="lg:col-span-4">
             <div class="bg-gray-800 rounded-xl p-2 border border-gray-700 flex flex-col space-y-1">
                 <button onclick="switchTab('agent')" id="btn-agent" class="tab-active text-left px-4 py-3 rounded-lg transition-all flex items-center">
                     <i class="fas fa-terminal mr-3 w-5 text-center"></i> Autonomous Agent
@@ -43,6 +44,7 @@
             </div>
         </div>
 
+        <!-- Right Column - Content Panels -->
         <div class="lg:col-span-8">
             <!-- Agent Panel -->
             <div id="panel-agent" class="section-panel bg-gray-800 rounded-xl p-6 border border-gray-700 shadow-lg">
