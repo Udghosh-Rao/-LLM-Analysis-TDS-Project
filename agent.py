@@ -1,43 +1,39 @@
 from langgraph.graph import StateGraph, END, START
-from shared_store import url_time
-import time
-from langchain_core.rate_limiters import InMemoryRateLimiter
 from langgraph.prebuilt import ToolNode
-from tools import (
-    get_rendered_html, download_file, post_request,
-    run_code, add_dependencies, ocr_image_tool, transcribe_audio, encode_image_to_base64
-)
-from typing import TypedDict, Annotated, List
+from langchain_core.rate_limiters import InMemoryRateLimiter
 from langchain_core.messages import trim_messages, HumanMessage
 from langchain.chat_models import init_chat_model
 from langgraph.graph.message import add_messages
-import os
+from typing import TypedDict, Annotated, List
+from shared_store import url_time
+from tools import (
+    get_rendered_html, download_file, post_request,
+    run_code, add_dependencies, ocr_image_tool,
+    transcribe_audio, encode_image_to_base64, get_stock_data
+)
+import os, time
 from dotenv import load_dotenv
+
 load_dotenv()
 
-EMAIL = os.getenv("EMAIL")
-SECRET = os.getenv("SECRET")
-
+EMAIL         = os.getenv("EMAIL")
+SECRET        = os.getenv("SECRET")
 RECURSION_LIMIT = 5000
-MAX_TOKENS = 60000
+MAX_TOKENS    = 60000
+
+TOOLS = [
+    run_code, get_rendered_html, download_file, post_request,
+    add_dependencies, ocr_image_tool, transcribe_audio,
+    encode_image_to_base64, get_stock_data
+]
 
 
-# -------------------------------------------------
-# STATE
-# -------------------------------------------------
+# ── STATE ─────────────────────────────────────────────────────────────
 class AgentState(TypedDict):
     messages: Annotated[List, add_messages]
 
 
-TOOLS = [
-    run_code, get_rendered_html, download_file,
-    post_request, add_dependencies, ocr_image_tool, transcribe_audio, encode_image_to_base64
-]
-
-
-# -------------------------------------------------
-# LLM INIT
-# -------------------------------------------------
+# ── LLM INIT ──────────────────────────────────────────────────────────
 rate_limiter = InMemoryRateLimiter(
     requests_per_second=4 / 60,
     check_every_n_seconds=1,
@@ -51,180 +47,143 @@ llm = init_chat_model(
 ).bind_tools(TOOLS)
 
 
-# -------------------------------------------------
-# SYSTEM PROMPT
-# -------------------------------------------------
+# ── SYSTEM PROMPT ─────────────────────────────────────────────────────
 SYSTEM_PROMPT = f"""
-You are an autonomous quiz-solving agent.
+You are an autonomous task-solving agent with access to 9 specialized tools.
 
-Your job is to:
-1. Load each quiz page from the given URL.
-2. Extract instructions, parameters, and submit endpoint.
-3. Solve tasks exactly.
-4. Submit answers ONLY to the correct endpoint.
-5. Follow new URLs until none remain, then output END.
+Your capabilities:
+- Render and parse any webpage (including JavaScript-heavy pages)
+- Write and execute Python code in a sandboxed environment
+- Fetch and analyze live stock/financial data
+- Perform OCR on images and transcribe audio files
+- Download files, send HTTP requests, install dependencies on the fly
 
-Rules:
-- For base64 generation of an image NEVER use your own code, always use the "encode_image_to_base64" tool that's provided
-- Never hallucinate URLs or fields.
-- Never shorten endpoints.
-- Always inspect server response.
-- Never stop early.
-- Use tools for HTML, downloading, rendering, OCR, or running code.
-- Include:
-    email = {EMAIL}
-    secret = {SECRET}
+Your operating rules:
+1. Load each task page from the given URL.
+2. Extract instructions, parameters, and the submission endpoint carefully.
+3. Solve the task exactly — do not approximate or hallucinate answers.
+4. Submit answers ONLY to the correct endpoint with the required fields.
+5. Always include email={EMAIL} and secret={SECRET} in submissions.
+6. For Base64 image encoding, ALWAYS use the encode_image_to_base64 tool — never write your own.
+7. Never hallucinate URLs, field names, or endpoint paths.
+8. Always inspect server responses before proceeding.
+9. Follow next URLs until none remain, then output END.
 """
 
 
-# -------------------------------------------------
-# NEW NODE: HANDLE MALFORMED JSON
-# -------------------------------------------------
+# ── MALFORMED JSON RECOVERY NODE ──────────────────────────────────────
 def handle_malformed_node(state: AgentState):
-    """
-    If the LLM generates invalid JSON, this node sends a correction message
-    so the LLM can try again.
-    """
-    print("--- DETECTED MALFORMED JSON. ASKING AGENT TO RETRY ---")
+    print("--- MALFORMED JSON DETECTED: Asking agent to retry ---")
     return {
-        "messages": [
-            {
-                "role": "user", 
-                "content": "SYSTEM ERROR: Your last tool call was Malformed (Invalid JSON). Please rewrite the code and try again. Ensure you escape newlines and quotes correctly inside the JSON."
-            }
-        ]
+        "messages": [{
+            "role": "user",
+            "content": (
+                "SYSTEM ERROR: Your last tool call was malformed (Invalid JSON). "
+                "Please rewrite the tool call and try again. "
+                "Ensure all strings have escaped newlines and quotes inside JSON."
+            )
+        }]
     }
 
 
-# -------------------------------------------------
-# AGENT NODE
-# -------------------------------------------------
+# ── AGENT NODE ────────────────────────────────────────────────────────
 def agent_node(state: AgentState):
-    # --- TIME HANDLING START ---
     cur_time = time.time()
-    cur_url = os.getenv("url")
-    
-    # SAFE GET: Prevents crash if url is None or not in dict
-    prev_time = url_time.get(cur_url) 
-    offset = os.getenv("offset", "0")
+    cur_url  = os.getenv("url")
+    prev_time = url_time.get(cur_url)
+    offset   = os.getenv("offset", "0")
 
+    # Timeout watchdog: gracefully fail after 180 seconds
     if prev_time is not None:
-        prev_time = float(prev_time)
-        diff = cur_time - prev_time
-
-        if diff >= 180 or (offset != "0" and (cur_time - float(offset)) > 90):
-            print(f"Timeout exceeded ({diff}s) — instructing LLM to purposely submit wrong answer.")
-
-            fail_instruction = """
-            You have exceeded the time limit for this task (over 180 seconds).
-            Immediately call the `post_request` tool and submit a WRONG answer for the CURRENT quiz.
-            """
-
-            # Using HumanMessage (as you correctly implemented)
-            fail_msg = HumanMessage(content=fail_instruction)
-
-            # We invoke the LLM immediately with this new instruction
+        diff = cur_time - float(prev_time)
+        offset_exceeded = offset != "0" and (cur_time - float(offset)) > 90
+        if diff >= 180 or offset_exceeded:
+            print(f"Timeout exceeded ({diff:.0f}s) — submitting fallback answer.")
+            fail_msg = HumanMessage(content=(
+                "You have exceeded the time limit (180s) for this task. "
+                "Immediately call post_request and submit a WRONG answer for the CURRENT quiz to move on."
+            ))
             result = llm.invoke(state["messages"] + [fail_msg])
             return {"messages": [result]}
-    # --- TIME HANDLING END ---
 
-    trimmed_messages = trim_messages(
+    # Trim context to avoid token overflow
+    trimmed = trim_messages(
         messages=state["messages"],
         max_tokens=MAX_TOKENS,
         strategy="last",
         include_system=True,
         start_on="human",
-        token_counter=llm, 
+        token_counter=llm,
     )
-    
-    # Better check: Does it have a HumanMessage?
-    has_human = any(msg.type == "human" for msg in trimmed_messages)
-    
-    if not has_human:
-        print("WARNING: Context was trimmed too far. Injecting state reminder.")
-        # We remind the agent of the current URL from the environment
-        current_url = os.getenv("url", "Unknown URL")
-        reminder = HumanMessage(content=f"Context cleared due to length. Continue processing URL: {current_url}")
-        
-        # We append this to the trimmed list (temporarily for this invoke)
-        trimmed_messages.append(reminder)
-    # ----------------------------------------
 
-    print(f"--- INVOKING AGENT (Context: {len(trimmed_messages)} items) ---")
-    
-    result = llm.invoke(trimmed_messages)
+    # Safety: re-inject context if trimmed too aggressively
+    if not any(msg.type == "human" for msg in trimmed):
+        print("WARNING: Context over-trimmed. Injecting URL reminder.")
+        trimmed.append(HumanMessage(
+            content=f"Context cleared due to length. Continue processing URL: {os.getenv('url', 'Unknown')}"
+        ))
 
+    print(f"--- INVOKING AGENT (Context: {len(trimmed)} messages) ---")
+    result = llm.invoke(trimmed)
     return {"messages": [result]}
 
 
-# -------------------------------------------------
-# ROUTE LOGIC (UPDATED FOR MALFORMED CALLS)
-# -------------------------------------------------
-def route(state):
+# ── ROUTING LOGIC ─────────────────────────────────────────────────────
+def route(state: AgentState):
     last = state["messages"][-1]
-    
-    # 1. CHECK FOR MALFORMED FUNCTION CALLS
-    if "finish_reason" in last.response_metadata:
-        if last.response_metadata["finish_reason"] == "MALFORMED_FUNCTION_CALL":
-            return "handle_malformed"
 
-    # 2. CHECK FOR VALID TOOLS
-    tool_calls = getattr(last, "tool_calls", None)
-    if tool_calls:
-        print("Route → tools")
+    # Check for malformed function call
+    if last.response_metadata.get("finish_reason") == "MALFORMED_FUNCTION_CALL":
+        return "handle_malformed"
+
+    # Check for valid tool calls
+    if getattr(last, "tool_calls", None):
         return "tools"
 
-    # 3. CHECK FOR END
-    content = getattr(last, "content", None)
+    # Check for END signal
+    content = getattr(last, "content", "")
     if isinstance(content, str) and content.strip() == "END":
         return END
+    if isinstance(content, list) and content and content[0].get("text", "").strip() == "END":
+        return END
 
-    if isinstance(content, list) and len(content) and isinstance(content[0], dict):
-        if content[0].get("text", "").strip() == "END":
-            return END
-
-    print("Route → agent")
     return "agent"
 
 
-# -------------------------------------------------
-# GRAPH
-# -------------------------------------------------
+# ── GRAPH ASSEMBLY ────────────────────────────────────────────────────
 graph = StateGraph(AgentState)
 
-# Add Nodes
-graph.add_node("agent", agent_node)
-graph.add_node("tools", ToolNode(TOOLS))
-graph.add_node("handle_malformed", handle_malformed_node) # Add the repair node
+graph.add_node("agent",            agent_node)
+graph.add_node("tools",            ToolNode(TOOLS))
+graph.add_node("handle_malformed", handle_malformed_node)
 
-# Add Edges
-graph.add_edge(START, "agent")
-graph.add_edge("tools", "agent")
-graph.add_edge("handle_malformed", "agent") # Retry loop
+graph.add_edge(START,              "agent")
+graph.add_edge("tools",            "agent")
+graph.add_edge("handle_malformed", "agent")
 
-# Conditional Edges
 graph.add_conditional_edges(
-    "agent", 
+    "agent",
     route,
     {
-        "tools": "tools",
-        "agent": "agent",
-        "handle_malformed": "handle_malformed", # Map the new route
-        END: END
+        "tools":            "tools",
+        "agent":            "agent",
+        "handle_malformed": "handle_malformed",
+        END:                END
     }
 )
 
 app = graph.compile()
 
 
-# -------------------------------------------------
-# RUNNER
-# -------------------------------------------------
+# ── RUNNER ────────────────────────────────────────────────────────────
 def run_agent(url: str):
-    # system message is seeded ONCE here
+    print(f"\n{'='*60}")
+    print(f"Agent starting on: {url}")
+    print(f"{'='*60}\n")
+
     initial_messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": url}
+        {"role": "user",   "content": url}
     ]
 
     app.invoke(
@@ -232,4 +191,4 @@ def run_agent(url: str):
         config={"recursion_limit": RECURSION_LIMIT}
     )
 
-    print("Tasks completed successfully!")
+    print("\nAll tasks completed successfully!")
