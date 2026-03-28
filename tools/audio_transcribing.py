@@ -1,43 +1,40 @@
-from langchain.tools import tool
 import speech_recognition as sr
 from pydub import AudioSegment
 import os
+from langchain_core.tools import tool
 
 @tool
 def transcribe_audio(file_path: str) -> str:
     """
-    Transcribe an MP3 or WAV audio file into text using Google's Web Speech API.
+    Transcribe an MP3 or WAV audio file to text using Google Speech Recognition.
 
-    Args:
-        file_path (str): Path to the input audio file (.mp3 or .wav).
+    Parameters
+    ----------
+    file_path : str
+        Path to the audio file (relative to LLMFiles directory).
+        Supports .mp3 and .wav formats.
 
-    Returns:
-        str: The transcribed text from the audio.
-
-    Notes:
-        - MP3 files are automatically converted to WAV.
-        - Requires `pydub` and `speech_recognition` packages.
-        - Uses Google's free recognize_google() API (requires internet).
+    Returns
+    -------
+    str  Transcribed text, or an error message.
     """
     try:
-        # Convert MP3 → WAV if needed
-        file_path = os.path.join("LLMFiles", file_path)
-        final_path = file_path
-        if file_path.lower().endswith(".mp3"):
-            sound = AudioSegment.from_mp3(file_path)
-            final_path = file_path.replace(".mp3", ".wav")
+        full_path  = os.path.join("LLMFiles", file_path)
+        final_path = full_path
+
+        if full_path.lower().endswith(".mp3"):
+            sound      = AudioSegment.from_mp3(full_path)
+            final_path = full_path.replace(".mp3", ".wav")
             sound.export(final_path, format="wav")
 
-        # Speech recognition
         recognizer = sr.Recognizer()
         with sr.AudioFile(final_path) as source:
-            audio_data = recognizer.record(source)
-            text = recognizer.recognize_google(audio_data)
+            audio = recognizer.record(source)
+            text  = recognizer.recognize_google(audio)
 
-        # If we converted the file, remove temp wav
-        if final_path != file_path and os.path.exists(final_path):
+        if final_path != full_path and os.path.exists(final_path):
             os.remove(final_path)
 
         return text
     except Exception as e:
-        return f"Error occurred: {e}"
+        return f"Transcription error: {e}"
