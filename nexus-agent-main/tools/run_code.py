@@ -26,20 +26,21 @@ def run_code(code: str) -> dict:
         }
     """
     try:
-        os.makedirs("LLMFiles", exist_ok=True)
-        filepath = os.path.join("LLMFiles", "runner.py")
+        work_dir = os.path.abspath("LLMFiles")
+        os.makedirs(work_dir, exist_ok=True)
+        filepath = os.path.join(work_dir, "runner.py")
 
         with open(filepath, "w") as f:
             f.write(code)
 
         proc = subprocess.Popen(
-            ["uv", "run", "runner.py"],
+            ["uv", "run", filepath],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-            cwd="LLMFiles",
+            cwd=work_dir,
         )
-        stdout, stderr = proc.communicate()
+        stdout, stderr = proc.communicate(timeout=60)
 
         if len(stdout) > OUTPUT_LIMIT:
             stdout = stdout[:OUTPUT_LIMIT] + "\n... [TRUNCATED]"
@@ -47,5 +48,8 @@ def run_code(code: str) -> dict:
             stderr = stderr[:OUTPUT_LIMIT] + "\n... [TRUNCATED]"
 
         return {"stdout": stdout, "stderr": stderr, "return_code": proc.returncode}
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        return {"stdout": "", "stderr": "Execution timed out after 60 seconds.", "return_code": -1}
     except Exception as e:
         return {"stdout": "", "stderr": str(e), "return_code": -1}
