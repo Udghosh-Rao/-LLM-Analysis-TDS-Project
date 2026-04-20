@@ -1,5 +1,7 @@
+import asyncio
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 
@@ -10,9 +12,11 @@ from shared_store import BASE64_STORE, run_counter, url_time
 
 router = APIRouter(tags=["Agent"])
 
+_executor = ThreadPoolExecutor(max_workers=4)
+
 
 @router.post("/solve")
-def solve(payload: SolveRequest, background_tasks: BackgroundTasks):
+async def solve(payload: SolveRequest, background_tasks: BackgroundTasks):
     if payload.secret != settings.secret:
         raise HTTPException(status_code=403, detail="Invalid secret.")
 
@@ -29,12 +33,13 @@ def solve(payload: SolveRequest, background_tasks: BackgroundTasks):
 
 
 @router.post("/agent/run")
-def run_agent_endpoint(payload: AgentRunRequest):
+async def run_agent_endpoint(payload: AgentRunRequest):
     if payload.secret != settings.secret:
         raise HTTPException(status_code=403, detail="Invalid secret.")
 
     try:
-        result = run_agent(payload.prompt)
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(_executor, run_agent, payload.prompt)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Agent execution failed: {exc}") from exc
 
