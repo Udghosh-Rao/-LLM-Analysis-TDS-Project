@@ -3,6 +3,7 @@ from tools import (
     download_file,
     encode_image_to_base64,
     get_rendered_html,
+    get_stock_data,
     ocr_image_tool,
     post_request,
     run_code,
@@ -18,4 +19,5 @@ GENERAL_TOOLS = [
     ocr_image_tool,
     transcribe_audio,
     encode_image_to_base64,
+    get_stock_data,
 ]
