@@ -6,6 +6,10 @@
     <title>Nexus Agent Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .glass-panel { background: rgba(31, 41, 55, 0.7); backdrop-filter: blur(10px); }
+        .tab-active { border-bottom: 2px solid #3b82f6; color: #3b82f6; }
+    </style>
 </head>
 <body class="bg-gray-900 text-gray-100 font-sans min-h-screen">
     <nav class="bg-gray-800 border-b border-gray-700 px-6 py-4 flex justify-between items-center sticky top-0 z-50">
@@ -13,22 +17,56 @@
             <div class="bg-blue-600 p-2 rounded-lg"><i class="fas fa-robot text-white text-xl"></i></div>
             <h1 class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-emerald-400">Nexus Agent</h1>
         </div>
-        <div class="flex items-center space-x-4 text-sm font-medium">
-            <span class="flex items-center text-emerald-400"><span class="w-2 h-2 bg-emerald-400 rounded-full animate-pulse mr-2"></span>System Live</span>
+        <div class="flex items-center space-x-4">
+            <input type="password" id="secretKey" value="i love you" placeholder="Secret Key" class="bg-gray-900 border border-gray-700 rounded px-3 py-1 text-xs focus:ring-1 focus:ring-blue-500 outline-none">
+            <div class="flex items-center text-emerald-400 text-sm"><span class="w-2 h-2 bg-emerald-400 rounded-full animate-pulse mr-2"></span>System Live</div>
         </div>
     </nav>
 
     <div class="max-w-7xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <!-- Sidebar Controls -->
         <div class="lg:col-span-4 space-y-6">
-            <div class="bg-gray-800 rounded-xl p-6 border border-gray-700 shadow-xl">
-                <h2 class="text-lg font-semibold mb-4 flex items-center"><i class="fas fa-terminal mr-2 text-blue-400"></i>Agent Command</h2>
-                <textarea id="query" rows="4" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 transition-all outline-none mb-4" placeholder="e.g. Analyze NVDA stock performance."></textarea>
-                <button id="runBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors flex items-center justify-center space-x-2">
+            <!-- Tabs -->
+            <div class="bg-gray-800 rounded-xl p-2 border border-gray-700 flex space-x-1">
+                <button onclick="switchTab('agent')" id="tab-agent" class="flex-1 py-2 text-xs font-semibold rounded-lg transition-all tab-active">Agent</button>
+                <button onclick="switchTab('finance')" id="tab-finance" class="flex-1 py-2 text-xs font-semibold rounded-lg transition-all text-gray-400 hover:bg-gray-700">Finance</button>
+                <button onclick="switchTab('risk')" id="tab-risk" class="flex-1 py-2 text-xs font-semibold rounded-lg transition-all text-gray-400 hover:bg-gray-700">Risk</button>
+                <button onclick="switchTab('monitor')" id="tab-monitor" class="flex-1 py-2 text-xs font-semibold rounded-lg transition-all text-gray-400 hover:bg-gray-700">Metrics</button>
+            </div>
+
+            <!-- Agent Section -->
+            <div id="section-agent" class="bg-gray-800 rounded-xl p-6 border border-gray-700 shadow-xl">
+                <h2 class="text-lg font-semibold mb-4 flex items-center"><i class="fas fa-terminal mr-2 text-blue-400"></i>Autonomous Agent</h2>
+                <textarea id="query" rows="4" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 mb-4 outline-none" placeholder="e.g. Find RSI for NVDA and explain if it's overbought."></textarea>
+                <button id="runBtn" onclick="runAgent()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors flex items-center justify-center space-x-2">
                     <i class="fas fa-play"></i><span>Execute Agent</span>
                 </button>
             </div>
+
+            <!-- Finance Section -->
+            <div id="section-finance" class="bg-gray-800 rounded-xl p-6 border border-gray-700 shadow-xl hidden">
+                <h2 class="text-lg font-semibold mb-4 flex items-center"><i class="fas fa-chart-line mr-2 text-emerald-400"></i>Direct Quant Analysis</h2>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">Ticker</label>
+                        <input id="fin-ticker" type="text" value="AAPL" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm outline-none focus:ring-1 focus:ring-emerald-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">Period</label>
+                        <select id="fin-period" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm outline-none focus:ring-1 focus:ring-emerald-500">
+                            <option value="1mo">1 Month</option>
+                            <option value="6mo" selected>6 Months</option>
+                            <option value="1y">1 Year</option>
+                            <option value="5y">5 Years</option>
+                        </select>
+                    </div>
+                    <button onclick="analyzeFinance()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 rounded transition-colors">Run Quant Metrics</button>
+                </div>
+            </div>
+
+            <!-- Metrics Card -->
             <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
-                <h2 class="text-lg font-semibold mb-4 flex items-center"><i class="fas fa-chart-line mr-2 text-emerald-400"></i>Metrics</h2>
+                <h2 class="text-lg font-semibold mb-4 flex items-center"><i class="fas fa-microchip mr-2 text-purple-400"></i>Session Metrics</h2>
                 <div class="grid grid-cols-2 gap-4 text-center">
                     <div class="bg-gray-900 p-3 rounded-lg border border-gray-700"><p class="text-xs text-gray-400">Total Runs</p><p id="totalRuns" class="text-xl font-bold">0</p></div>
                     <div class="bg-gray-900 p-3 rounded-lg border border-gray-700"><p class="text-xs text-gray-400">Latency</p><p id="avgLatency" class="text-xl font-bold">0ms</p></div>
@@ -36,81 +74,111 @@
             </div>
         </div>
 
-        <div class="lg:col-span-8">
-            <div class="bg-gray-800 rounded-xl border border-gray-700 flex flex-col h-[600px]">
-                <div class="px-6 py-4 border-b border-gray-700 flex justify-between items-center">
-                    <h2 class="font-semibold flex items-center"><i class="fas fa-microchip mr-2 text-purple-400"></i>Intelligence Output</h2>
-                    <button id="clearBtn" class="text-sm text-gray-400 hover:text-white transition-colors">Clear</button>
-                </div>
-                <div id="output" class="flex-1 overflow-y-auto p-6 font-mono text-sm space-y-2">
-                    <p class="text-gray-500 italic">Welcome. Enter a query...</p>
-                </div>
-                <div id="loader" class="hidden px-6 py-3 border-t border-gray-700 text-emerald-400 text-sm flex items-center space-x-2">
-                    <i class="fas fa-spinner fa-spin"></i><span> Processing... </span>
-                </div>
+        <!-- Main Output -->
+        <div class="lg:col-span-8 bg-gray-800 rounded-xl border border-gray-700 flex flex-col h-[700px]">
+            <div class="px-6 py-4 border-b border-gray-700 flex justify-between items-center">
+                <h2 class="font-semibold flex items-center"><i class="fas fa-brain mr-2 text-blue-400"></i>Intelligence Output</h2>
+                <button id="clearBtn" onclick="document.getElementById('output').innerHTML=''" class="text-xs text-gray-400 hover:text-white transition-colors">Clear Console</button>
+            </div>
+            <div id="output" class="flex-1 p-6 overflow-y-auto font-mono text-sm space-y-4">
+                <div class="text-gray-500 italic">Console initialized. Ready for command...</div>
+            </div>
+            <div id="loader" class="hidden px-6 py-4 bg-gray-900 border-t border-gray-700 flex items-center justify-center space-x-3 text-blue-400">
+                <i class="fas fa-circle-notch fa-spin"></i><span class="text-xs font-medium uppercase tracking-wider">Processing Neural Request...</span>
             </div>
         </div>
     </div>
 
-<script>
-const output = document.getElementById('output');
-const queryInput = document.getElementById('query');
-const runBtn = document.getElementById('runBtn');
-const loader = document.getElementById('loader');
+    <script>
+        const output = document.getElementById('output');
+        const loader = document.getElementById('loader');
 
-async function updateMetrics() {
-    try {
-        const res = await fetch('/status');
-        const data = await res.json();
-        document.getElementById('totalRuns').innerText = data.metrics.api_total_runs || 0;
-        document.getElementById('avgLatency').innerText = Math.round(data.metrics.avg_latency || 0) + 'ms';
-    } catch (e) {}
-}
-
-function appendLog(content, type = 'info') {
-    const div = document.createElement('div');
-    const colors = {
-        info: 'text-gray-300',
-        error: 'text-red-400',
-        success: 'text-emerald-400 border-l-2 border-emerald-500 pl-3',
-        agent: 'text-blue-300 border-l-2 border-blue-500 pl-3'
-    };
-    div.className = colors[type] + ' mb-2';
-    div.innerHTML = content.replace(/\n/g, '<br>');
-    output.appendChild(div);
-    output.scrollTop = output.scrollHeight;
-}
-
-runBtn.onclick = async () => {
-    const query = queryInput.value.trim();
-    if (!query) return;
-    runBtn.disabled = true;
-    loader.classList.remove('hidden');
-    appendLog('> ' + query, 'info');
-    try {
-        const response = await fetch('/agent/run', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt: query, secret: 'i love you' })
-        });
-        const data = await response.json();
-        if (data.status === 'success') {
-            appendLog(data.response, 'agent');
-        } else {
-            appendLog('Error: ' + (data.message || data.detail || 'Unknown error'), 'error');
+        function switchTab(tab) {
+            ['agent', 'finance', 'risk', 'monitor'].forEach(t => {
+                const sec = document.getElementById('section-' + t);
+                const btn = document.getElementById('tab-' + t);
+                if (sec) sec.classList.add('hidden');
+                if (btn) btn.classList.remove('tab-active', 'text-blue-500', 'bg-gray-700');
+                if (btn) btn.classList.add('text-gray-400');
+            });
+            const activeSec = document.getElementById('section-' + tab);
+            const activeBtn = document.getElementById('tab-' + tab);
+            if (activeSec) activeSec.classList.remove('hidden');
+            if (activeBtn) {
+                activeBtn.classList.add('tab-active', 'bg-gray-700/50');
+                activeBtn.classList.remove('text-gray-400');
+            }
         }
-    } catch (error) {
-        appendLog('Connection Error: ' + error.message, 'error');
-    } finally {
-        runBtn.disabled = false;
-        loader.classList.add('hidden');
-        updateMetrics();
-    }
-};
 
-document.getElementById('clearBtn').onclick = () => { output.innerHTML = ''; };
-setInterval(updateMetrics, 5000);
-updateMetrics();
-</script>
+        function appendLog(content, type = 'info') {
+            const div = document.createElement('div');
+            const colors = {
+                info: 'text-gray-400',
+                error: 'text-red-400 border-l-2 border-red-500 pl-3',
+                success: 'text-emerald-400 border-l-2 border-emerald-500 pl-3',
+                agent: 'text-blue-300 border-l-2 border-blue-500 pl-3',
+                quant: 'text-purple-300 border-l-2 border-purple-500 pl-3'
+            };
+            div.className = colors[type] + ' mb-2 break-words';
+            div.innerHTML = typeof content === 'object' ? '<pre class="bg-black/30 p-2 rounded mt-1">' + JSON.stringify(content, null, 2) + '</pre>' : content.replace(/
+/g, '<br>');
+            output.appendChild(div);
+            output.scrollTop = output.scrollHeight;
+        }
+
+        async function runAgent() {
+            const query = document.getElementById('query').value.trim();
+            const secret = document.getElementById('secretKey').value;
+            if (!query) return;
+
+            loader.classList.remove('hidden');
+            appendLog('> ' + query, 'info');
+            try {
+                const res = await fetch('/agent/run', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt: query, secret })
+                });
+                const data = await res.json();
+                if (data.status === 'success') appendLog(data.response, 'agent');
+                else appendLog(data.detail || data.message || 'Error', 'error');
+            } catch (e) { appendLog(e.message, 'error'); }
+            finally { loader.classList.add('hidden'); updateMetrics(); }
+        }
+
+        async function analyzeFinance() {
+            const ticker = document.getElementById('fin-ticker').value;
+            const period = document.getElementById('fin-period').value;
+            const secret = document.getElementById('secretKey').value;
+            
+            loader.classList.remove('hidden');
+            appendLog(`> Quant Analysis: ${ticker} (${period})`, 'info');
+            try {
+                const res = await fetch('/analyze/finance', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ticker, period, secret })
+                });
+                const data = await res.json();
+                if (data.explanation) {
+                    appendLog(data.explanation, 'quant');
+                    appendLog(data, 'info');
+                } else appendLog(data, 'quant');
+            } catch (e) { appendLog(e.message, 'error'); }
+            finally { loader.classList.add('hidden'); }
+        }
+
+        async function updateMetrics() {
+            try {
+                const res = await fetch('/status');
+                const data = await res.json();
+                document.getElementById('totalRuns').innerText = data.counters.total_runs || 0;
+                // Add more metric parsing as needed
+            } catch (e) {}
+        }
+
+        setInterval(updateMetrics, 10000);
+        updateMetrics();
+    </script>
 </body>
 </html>
