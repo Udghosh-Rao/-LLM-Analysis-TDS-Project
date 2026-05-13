@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nexus Agent Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .tab-active { border-bottom: 2px solid #3b82f6; color: #3b82f6; background: rgba(59, 130, 246, 0.1); }
+        .hidden-section { display: none !important; }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 font-sans min-h-screen">
+    <nav class="bg-gray-800 border-b border-gray-700 px-6 py-4 flex justify-between items-center sticky top-0 z-50">
+        <div class="flex items-center space-x-3">
+            <div class="bg-blue-600 p-2 rounded-lg"><i class="fas fa-robot text-white text-xl"></i></div>
+            <h1 class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-emerald-400">Nexus Agent</h1>
+        </div>
+        <div class="flex items-center space-x-4">
+            <input type="password" id="secretKey" value="" placeholder="API Secret" class="bg-gray-900 border border-gray-700 rounded px-3 py-1 text-xs focus:ring-1 focus:ring-blue-500 outline-none">
+            <div id="connectionStatus" class="flex items-center text-emerald-400 text-sm">
+                <span class="w-2 h-2 bg-emerald-400 rounded-full animate-pulse mr-2"></span>Connected
+            </div>
+        </div>
+    </nav>
+
+    <div class="max-w-7xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <!-- Left Sidebar - Navigation Only -->
+        <div class="lg:col-span-4">
+            <div class="bg-gray-800 rounded-xl p-2 border border-gray-700 flex flex-col space-y-1">
+                <button onclick="switchTab('agent')" id="btn-agent" class="tab-active text-left px-4 py-3 rounded-lg transition-all flex items-center">
+                    <i class="fas fa-terminal mr-3 w-5 text-center"></i> Autonomous Agent
+                </button>
+                <button onclick="switchTab('finance')" id="btn-finance" class="text-left px-4 py-3 rounded-lg text-gray-400 hover:bg-gray-700 transition-all flex items-center">
+                    <i class="fas fa-chart-line mr-3 w-5 text-center"></i> Quant Analysis
+                </button>
+                <button onclick="switchTab('risk')" id="btn-risk" class="text-left px-4 py-3 rounded-lg text-gray-400 hover:bg-gray-700 transition-all flex items-center">
+                    <i class="fas fa-shield-alt mr-3 w-5 text-center"></i> Risk Detector
+                </button>
+                <button onclick="switchTab('metrics')" id="btn-metrics" class="text-left px-4 py-3 rounded-lg text-gray-400 hover:bg-gray-700 transition-all flex items-center">
+                    <i class="fas fa-tachometer-alt mr-3 w-5 text-center"></i> System Metrics
+                </button>
+            </div>
+        </div>
+
+        <!-- Right Column - Content Panels -->
+        <div class="lg:col-span-8">
+            <!-- Agent Panel -->
+            <div id="panel-agent" class="section-panel bg-gray-800 rounded-xl p-6 border border-gray-700 shadow-lg">
+                <h2 class="text-lg font-semibold mb-4">Agent Input</h2>
+                <textarea id="agentQuery" rows="4" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-sm outline-none focus:ring-1 focus:ring-blue-500" placeholder="Enter your query for the agent..."></textarea>
+                <button onclick="runAgent()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg mt-3">
+                    <i class="fas fa-play"></i><span> Run Agent</span>
+                </button>
+            </div>
+
+            <!-- Finance Panel -->
+            <div id="panel-finance" class="section-panel hidden-section bg-gray-800 rounded-xl p-6 border border-gray-700 shadow-lg">
+                <h2 class="text-lg font-semibold mb-4 text-emerald-400">Quant Parameters</h2>
+                <div class="space-y-4">
+                    <input id="finTicker" type="text" value="AAPL" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm outline-none focus:ring-1 focus:ring-emerald-500" placeholder="Stock Ticker">
+                    <select id="finPeriod" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm outline-none focus:ring-1 focus:ring-emerald-500">
+                        <option value="1mo">1 Month</option>
+                        <option value="6mo" selected>6 Months</option>
+                        <option value="1y">1 Year</option>
+                    </select>
+                    <button onclick="runFinance()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-lg">
+                        Analyze Stock
+                    </button>
+                </div>
+            </div>
+
+            <!-- Risk Panel -->
+            <div id="panel-risk" class="section-panel hidden-section bg-gray-800 rounded-xl p-6 border border-gray-700 shadow-lg">
+                <h2 class="text-lg font-semibold mb-4 text-orange-400">Risk Parameters</h2>
+                <div class="space-y-4">
+                    <textarea id="riskData" rows="4" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-sm" placeholder='Enter JSON observation data, e.g., [0.5, 1.2, -0.3]'></textarea>
+                    <button onclick="runRisk()" class="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 rounded-lg">
+                        Detect Anomaly
+                    </button>
+                </div>
+            </div>
+
+            <!-- Metrics Panel -->
+            <div id="panel-metrics" class="section-panel hidden-section bg-gray-800 rounded-xl p-6 border border-gray-700 shadow-lg">
+                <h2 class="text-lg font-semibold mb-4">System Metrics</h2>
+                <div class="grid grid-cols-2 gap-4 text-center">
+                    <div class="bg-gray-900 p-3 rounded-lg border border-gray-700">
+                        <p class="text-xs text-gray-400">API Calls</p>
+                        <p id="statCalls" class="text-2xl font-bold text-blue-400">0</p>
+                    </div>
+                    <div class="bg-gray-900 p-3 rounded-lg border border-gray-700">
+                        <p class="text-xs text-gray-400">Uptime</p>
+                        <p id="statUptime" class="text-2xl font-bold text-emerald-400">0s</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Terminal Output -->
+    <div class="max-w-7xl mx-auto p-6 pt-0">
+        <div class="bg-gray-800 rounded-xl p-6 border border-gray-700 shadow-lg">
+            <div class="flex justify-between items-center mb-3">
+                <h2 class="text-lg font-semibold">Terminal Output</h2>
+                <button onclick="document.getElementById('console').innerHTML='<div class=\"text-gray-500 mb-2\">System initialized...</div>'" class="text-xs bg-gray-700 px-3 py-1 rounded hover:bg-gray-600">
+                    Clear
+                </button>
+            </div>
+            <div id="console" class="bg-black rounded-lg p-4 h-80 overflow-y-auto font-mono text-sm">
+                <div class="text-gray-500 mb-2">System initialized...</div>
+            </div>
+            <div id="loader" class="hidden flex items-center justify-center mt-3">
+                <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
+                <span class="ml-2 text-sm text-gray-400">Processing...</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function switchTab(tab) {
+            document.querySelectorAll('.section-panel').forEach(p => p.classList.add('hidden-section'));
+            document.querySelectorAll('[id^="btn-"]').forEach(b => b.classList.remove('tab-active', 'text-blue-500'));
+            document.querySelectorAll('[id^="btn-"]').forEach(b => b.classList.add('text-gray-400'));
+            document.getElementById('panel-' + tab).classList.remove('hidden-section');
+            document.getElementById('btn-' + tab).classList.add('tab-active');
+            document.getElementById('btn-' + tab).classList.remove('text-gray-400');
+        }
+
+        function log(msg, type = 'info') {
+            const div = document.createElement('div');
+            const map = { info: 'text-gray-400', error: 'text-red-400', agent: 'text-blue-300', quant: 'text-emerald-300', risk: 'text-orange-300' };
+            div.className = (map[type] || 'text-white') + ' mb-2 leading-relaxed border-l-2 pl-3 border-current';
+            div.innerHTML = typeof msg === 'object' ? '<pre>' + JSON.stringify(msg, null, 2) + '</pre>' : msg.replace(/\n/g, '<br>');
+            const term = document.getElementById('console');
+            term.appendChild(div);
+            term.scrollTop = term.scrollHeight;
+        }
+
+        async function api(path, body) {
+            const secret = document.getElementById('secretKey').value;
+            const loader = document.getElementById('loader');
+            loader.classList.remove('hidden');
+            try {
+                const res = await fetch(path, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ...body, secret })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || 'API Error');
+                return data;
+            } catch (e) {
+                log(e.message, 'error');
+                return null;
+            } finally {
+                loader.classList.add('hidden');
+                updateStats();
+            }
+        }
+
+        async function runAgent() {
+            const prompt = document.getElementById('agentQuery').value.trim();
+            if (!prompt) return;
+            log('> ' + prompt, 'info');
+            const data = await api('/agent/run', { prompt });
+            if (data) log(data.response, 'agent');
+        }
+
+        async function runFinance() {
+            const ticker = document.getElementById('finTicker').value;
+            const period = document.getElementById('finPeriod').value;
+            log(`> Quant Analysis: ${ticker}`, 'info');
+            const data = await api('/analyze/finance', { ticker, period });
+            if (data) log(data.explanation || data, 'quant');
+        }
+
+        async function runRisk() {
+            try {
+                const obs = JSON.parse(document.getElementById('riskData').value);
+                log('> Risk Analysis', 'info');
+                const data = await api('/detect/risk', { observation: obs });
+                if (data) log(data, 'risk');
+            } catch(e) {
+                log('Invalid JSON input', 'error');
+            }
+        }
+
+        async function updateStats() {
+            try {
+                const res = await fetch('/status');
+                const data = await res.json();
+                document.getElementById('statCalls').innerText = data.counters.total || 0;
+                document.getElementById('statUptime').innerText = data.uptime_seconds + 's';
+            } catch(e) {}
+        }
+
+        setInterval(updateStats, 5000);
+        updateStats();
+    </script>
+</body>
+</html>

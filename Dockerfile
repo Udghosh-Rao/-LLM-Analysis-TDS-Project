@@ -16,8 +16,6 @@ RUN uv pip install --system -r requirements.txt
 
 RUN playwright install chromium --with-deps
 
-# Force rebuild for static file update
-
 COPY nexus-agent-main/ .
 
 EXPOSE 7860

@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import yfinance as yf
 
+# Standard annualization constant for equity markets.
 TRADING_DAYS_PER_YEAR = 252
 
 
@@ -11,28 +12,25 @@ def _rsi(series: pd.Series, period: int = 14) -> pd.Series:
     delta = series.diff()
     gains = delta.clip(lower=0)
     losses = -delta.clip(upper=0)
+
     avg_gain = gains.ewm(alpha=1 / period, min_periods=period, adjust=False).mean()
     avg_loss = losses.ewm(alpha=1 / period, min_periods=period, adjust=False).mean()
+
     rs = avg_gain / avg_loss.replace(0, np.nan)
     return 100 - (100 / (1 + rs))
 
 
 def load_ohlcv(ticker: str, period: str = "6mo") -> pd.DataFrame:
-    try:
-        t = yf.Ticker(ticker)
-        df = t.history(period=period, auto_adjust=True)
-        if df is None or df.empty:
-            return pd.DataFrame()
-        # Flatten MultiIndex columns if present
-        if isinstance(df.columns, pd.MultiIndex):
-            df.columns = [c[0] for c in df.columns]
-        # Normalize column names
-        df.columns = [str(c).strip() for c in df.columns]
-        required = ["Open", "High", "Low", "Close", "Volume"]
-        available = [c for c in required if c in df.columns]
-        return df[available].dropna()
-    except Exception:
-        return pd.DataFrame()
+    df = yf.download(ticker, period=period, progress=False, auto_adjust=False)
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = [c[0] for c in df.columns]
+
+    if df.empty:
+        return df
+
+    required = ["Open", "High", "Low", "Close", "Volume"]
+    available = [c for c in required if c in df.columns]
+    return df[available].dropna()
 
 
 def build_finance_feature_frame(df: pd.DataFrame) -> pd.DataFrame:
@@ -51,17 +49,20 @@ def build_finance_feature_frame(df: pd.DataFrame) -> pd.DataFrame:
     frame["ma_20"] = close.rolling(20).mean()
     frame["ma_50"] = close.rolling(50).mean()
     frame["rsi_14"] = _rsi(close)
-    # ATR
-    tr = pd.concat([
-        high - low,
-        (high - close.shift()).abs(),
-        (low - close.shift()).abs(),
-    ], axis=1).max(axis=1)
-    frame["atr_14"] = tr.rolling(14).mean()
-    frame["trend_signal"] = np.where(
-        close > frame["ma_20"], "Bullish", "Bearish"
-    )
-    return frame.dropna()
+    frame["momentum_10d"] = close / close.shift(10) - 1
+    frame["drawdown"] = close / close.cummax() - 1
+    frame["support_20d"] = low.rolling(20).min()
+    frame["resistance_20d"] = high.rolling(20).max()
+
+    return frame.dropna().copy()
+
+
+def classify_signal(ma_20: float, ma_50: float, rsi_14: float, momentum_10d: float) -> str:
+    if ma_20 > ma_50 and rsi_14 >= 55 and momentum_10d > 0:
+        return "bullish"
+    if ma_20 < ma_50 and rsi_14 <= 45 and momentum_10d < 0:
+        return "bearish"
+    return "neutral"
 
 
 def summarize_finance_features(ticker: str, period: str = "6mo") -> dict:
@@ -69,26 +70,43 @@ def summarize_finance_features(ticker: str, period: str = "6mo") -> dict:
     if df.empty:
         return {"error": f"No data found for ticker '{ticker}'."}
 
-    feature_frame = build_finance_feature_frame(df)
-    if feature_frame.empty:
+    features = build_finance_feature_frame(df)
+    if features.empty:
         return {"error": "Not enough data points to compute rolling indicators."}
 
-    last = feature_frame.iloc[-1]
-    close_series = df["Close"].astype(float)
-    current_price = float(close_series.iloc[-1])
-    prev_price = float(close_series.iloc[-2]) if len(close_series) > 1 else current_price
-    daily_change_pct = round((current_price - prev_price) / prev_price * 100, 2)
+    last = features.iloc[-1]
+    close = df["Close"].astype(float)
+
+    period_return = (float(close.iloc[-1]) / float(close.iloc[0])) - 1
+    trend_summary = "uptrend" if last["ma_20"] > last["ma_50"] else "downtrend"
+    signal = classify_signal(
+        ma_20=float(last["ma_20"]),
+        ma_50=float(last["ma_50"]),
+        rsi_14=float(last["rsi_14"]),
+        momentum_10d=float(last["momentum_10d"]),
+    )
 
     return {
-        "feature_frame": feature_frame,
-        "current_price": current_price,
-        "daily_change_pct": daily_change_pct,
-        "rsi_14": round(float(last["rsi_14"]), 2) if not pd.isna(last["rsi_14"]) else None,
-        "rolling_volatility": round(float(last["rolling_volatility_20d"]), 4) if not pd.isna(last["rolling_volatility_20d"]) else None,
-        "ma_20": round(float(last["ma_20"]), 2) if not pd.isna(last["ma_20"]) else None,
-        "ma_50": round(float(last["ma_50"]), 2) if not pd.isna(last["ma_50"]) else None,
-        "atr_14": round(float(last["atr_14"]), 4) if not pd.isna(last["atr_14"]) else None,
-        "trend_signal": str(last["trend_signal"]),
-        "close_prices": close_series.tolist(),
-        "dates": [str(d.date()) for d in feature_frame.index],
+        "ticker": ticker.upper(),
+        "period": period,
+        "price_summary": {
+            "current_price": round(float(close.iloc[-1]), 4),
+            "period_return": round(float(period_return), 6),
+            "data_points": int(len(df)),
+        },
+        "indicators": {
+            "return_1d": round(float(last["return_1d"]), 6),
+            "rolling_volatility_20d": round(float(last["rolling_volatility_20d"]), 6),
+            "ma_20": round(float(last["ma_20"]), 4),
+            "ma_50": round(float(last["ma_50"]), 4),
+            "rsi_14": round(float(last["rsi_14"]), 4),
+            "momentum_10d": round(float(last["momentum_10d"]), 6),
+            "drawdown": round(float(last["drawdown"]), 6),
+            "support_20d": round(float(last["support_20d"]), 4),
+            "resistance_20d": round(float(last["resistance_20d"]), 4),
+        },
+        "trend_summary": trend_summary,
+        "signal": signal,
+        "feature_frame": features,
+        "recent_ohlcv": df.tail(5).round(4).to_dict(orient="records"),
     }
