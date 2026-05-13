@@ -1,145 +1,81 @@
-# Autonomous AI Quant Research & Risk Analysis Agent
+# Nexus AI Agent
 
-A production-oriented LangGraph + FastAPI system for **financial analytics**, **ML-based anomaly/risk detection**, and **Groq-grounded explanation**.
+**AI-Powered Stock Analysis Assistant**
 
-## Positioning
+A polished, production-ready AI system that analyzes stocks, generates natural language insights, runs sentiment analysis, and provides actionable recommendations. Built with FastAPI, LangGraph, and cutting-edge ML models.
 
-This project is designed to signal:
-- **AI Engineering:** autonomous tool orchestration with LangGraph
-- **Data Science / ML:** feature engineering + Isolation Forest inference
-- **LLM Systems:** Groq-powered interpretation constrained by computed outputs
-- **Finance / Quant:** technical indicators, trend analysis, drawdown, support/resistance approximations
-- **Backend Engineering:** structured APIs, monitoring endpoints, and deployment-ready configuration
+---
 
-## Problem It Solves
+## Quick Start: What This Does
 
-Many LLM demos generate ungrounded financial commentary. This repository uses a safer pattern:
+**User types:** `"Analyze Tesla stock"`
+**System delivers:**
+- Live price data and interactive charts
+- AI-generated explanation in plain English
+- News sentiment analysis (positive/negative/neutral)
+- BUY/HOLD/WATCH recommendation with confidence score
+- Technical indicators (RSI, MA, volatility)
+- ML-powered risk/anomaly scoring
 
-1. Compute market and risk signals from real data/features
-2. Run ML/statistical analysis first
-3. Use Groq to explain **computed outputs**, not fabricate them
+---
 
-## Core Capabilities
+## For HR & Non-Technical Reviewers
 
-- LangGraph autonomous agent with task routing (`finance`, `general`, `unsupported`)
-- Finance analytics pipeline:
-  - returns
-  - rolling volatility
-  - moving averages (20/50)
-  - RSI(14)
-  - momentum
-  - drawdown
-  - support/resistance approximation
-  - trend + signal classification (`bullish`/`bearish`/`neutral`)
-- ML layer:
-  - Isolation Forest for market anomaly/risk scoring
-  - Isolation Forest for transaction-like risk detection
-  - outputs: anomaly score, risk score, label, confidence
-- Groq explanation layer grounded in computed metrics
-- FastAPI domain endpoints (`/analyze/finance`, `/detect/risk`, `/metrics`)
-- Legacy multi-tool support retained for web/code/ocr/audio/file workflows
+> **This is a real product demo, not a college assignment.**
 
-## Architecture Overview
+Nexus AI Agent combines:
 
-```text
-FastAPI
- ├─ /analyze/finance ──> feature engineering ──> ML scoring ──> Groq explanation
- ├─ /detect/risk    ──> structured features  ──> ML scoring ──> Groq explanation
- ├─ /agent/run      ──> LangGraph classify ──> finance/general tool routing
- └─ /metrics,/status,/healthz
+1. **Real-time financial data** from Yahoo Finance
+2. **Machine Learning** (IsolationForest for risk detection)
+3. **Sentiment Analysis** (FinBERT for news processing)
+4. **Large Language Models** (Groq's llama-3.3-70b for explanations)
+5. **AI Agent Orchestration** (LangGraph for task routing)
+6. **RESTful APIs** (FastAPI for clean backend architecture)
 
-LangGraph
- START -> classify -> (finance_agent | general_agent | unsupported)
- finance_agent <-> finance_tools
- general_agent <-> general_tools
-```
+The result is a system that can explain complex financial data in simple language — something real fintech startups need.
 
-## Example Use Cases
+---
 
-### 1) Quant-style market analysis
-Input ticker + period and get:
-- indicator snapshot
-- trend/signal summary
-- ML risk/anomaly estimate
-- concise narrative explanation
+## For Data Science Interviewers
 
-### 2) Transaction-like risk detection
-Input structured observation and get:
-- anomaly score
-- risk score
-- risk label + confidence
-- grounded explanation
+### Tech Stack
+| Layer | Technology |
+|---|---|
+| API | FastAPI + uvicorn |
+| Agent | LangGraph + LangChain |
+| LLM | Groq (llama-3.3-70b-versatile) |
+| ML | scikit-learn (IsolationForest), HuggingFace (FinBERT) |
+| Data | yfinance (market data) |
+| Cache | Custom LRU cache with TTL |
+| Deploy | Hugging Face Spaces (Docker) |
 
-## API Reference
+### Data Science Concepts Demonstrated
+- **Feature Engineering**: RSI(14), MA-20/50, rolling volatility, drawdown
+- **Anomaly Detection**: IsolationForest for market risk scoring
+- **Sentiment Analysis**: FinBERT on financial news headlines
+- **Recommendation Engine**: Score-based BUY/HOLD/WATCH logic
+- **LLM Grounding**: Computed metrics passed to LLM (no hallucination)
+- **Caching**: LRU cache with TTL for API performance
+- **Agent Orchestration**: LangGraph state machine with task routing
 
-### `POST /analyze/finance`
-Request:
-```json
-{
-  "ticker": "AAPL",
-  "period": "6mo",
-  "analysis_type": "standard",
-  "secret": "your-secret"
-}
-```
+---
 
-Response includes:
-- `price_summary`
-- `indicators`
-- `trend_summary`
-- `signal`
-- `ml_prediction`
-- `explanation`
+## API Endpoints
 
-### `POST /detect/risk`
-Request:
-```json
-{
-  "observation": {
-    "amount": 3200,
-    "balance": 7000,
-    "transaction_count_24h": 14,
-    "avg_amount_30d": 220,
-    "chargeback_count_90d": 2,
-    "device_change_count_30d": 1,
-    "geo_distance_km": 950,
-    "hour_of_day": 2
-  },
-  "secret": "your-secret"
-}
-```
+| Endpoint | Method | Description |
+|---|---|---|
+| `/dashboard/{ticker}` | GET | Full dashboard data: price, indicators, sentiment, recommendation |
+| `/chart/{ticker}` | GET | Time series chart data with moving averages |
+| `/chat` | POST | AI chat assistant for stock questions |
+| `/tech-info` | GET | Technical architecture overview (for interviewers) |
+| `/analyze/finance` | POST | Legacy quant analysis endpoint |
+| `/detect/risk` | POST | Transaction/observation risk detection |
+| `/agent/run` | POST | LangGraph autonomous agent |
+| `/status` | GET | System status and counters |
+| `/metrics` | GET | Observability metrics |
+| `/docs` | GET | Swagger API documentation |
 
-Response includes:
-- `anomaly_score`
-- `risk_score`
-- `label`
-- `confidence`
-- `explanation`
-
-### `POST /agent/run`
-Runs LangGraph task routing on prompt-style input.
-
-### `POST /solve`
-Retained for URL/task-runner style autonomous workflows.
-
-### `GET /healthz`
-Service liveness.
-
-### `GET /status`
-Runtime status, configured model, tool inventory, counters.
-
-### `GET /metrics`
-Lightweight observability snapshot (counters + latency summaries).
-
-## Metrics & Observability
-
-Tracked metrics include:
-- API total/failed runs
-- total agent runs
-- finance analyses completed
-- ML inference count
-- tool invocation counters
-- route-level latency summaries (avg/p95)
+---
 
 ## Setup
 
@@ -147,34 +83,60 @@ Tracked metrics include:
 pip install -r requirements.txt
 playwright install chromium
 cp .env.example .env
-```
-
-Set required variables in `.env`:
-- `GROQ_API_KEY`
-- `SECRET`
-- optional `GROQ_MODEL`, `RECURSION_LIMIT`, `MAX_TOKENS`
-
-Run server:
-```bash
+# Set GROQ_API_KEY and SECRET in .env
 uvicorn main:app --host 0.0.0.0 --port 7860 --reload
 ```
 
-## Deployment Notes (including Hugging Face Spaces)
+---
 
-- Fully environment-variable driven config
-- Works as a standard ASGI app (`main:app`)
-- For Hugging Face Spaces (Docker/Gradio-less backend style), expose port `7860` and set env vars in Space secrets
-- Optional: add a thin Gradio UI later; backend APIs are already deployment-ready
+## File Structure
 
-## Limitations
+```
+nexus-agent-main/
+├── app/
+│   ├── api/
+│   │   ├── app.py              # FastAPI entry + routers
+│   │   ├── routes_finance.py   # Dashboard, chart endpoints
+│   │   ├── routes_chat.py      # AI chat assistant
+│   │   ├── routes_technical.py # Interview-facing info
+│   │   ├── schemas.py          # Pydantic models
+│   │   └── ...
+│   ├── services/
+│   │   ├── sentiment_analyzer.py    # FinBERT sentiment
+│   │   ├── recommendation_engine.py # BUY/HOLD logic
+│   │   ├── caching.py         # LRU cache
+│   │   └── groq_client.py     # LLM client
+│   ├── ml/
+│   │   ├── finance_features.py # Feature engineering
+│   │   └── risk_model.py       # IsolationForest
+│   ├── agents/
+│   │   └── graph.py            # LangGraph agent
+│   └── static/
+│       └── index.html          # Frontend UI
+└── main.py
+```
 
-- Market anomaly model is unsupervised and should not be treated as investment advice
-- Transaction-risk baseline uses synthetic normal profile initialization unless replaced with domain data
-- LLM explanations depend on `GROQ_API_KEY`; fallback explanation is deterministic when key is absent
+---
 
-## Future Work
+## Key Design Decisions
 
-- Train risk models on domain datasets and persist calibrated artifacts
-- Add backtesting/evaluation pipeline for finance signals
-- Add authentication/authorization beyond shared secret
-- Add OpenTelemetry/Prometheus exporters for production monitoring
+1. **Compute First, Explain Later**: ML/statistical analysis runs before LLM generates text. No hallucinations.
+2. **Grounded LLM Responses**: All LLM explanations receive computed metrics as context.
+3. **Caching for Performance**: LRU cache reduces redundant API calls.
+4. **Modular Architecture**: Clean separation of concerns (routers, services, ML layers).
+5. **Demo-Friendly UI**: Modern dark theme with cards, charts, and natural language explanations.
+
+---
+
+## Disclaimer
+
+**This is for educational and demonstration purposes only. It is NOT financial advice. Do not use for real investment decisions.**
+
+---
+
+## Credits
+
+- **YFinance**: Market data
+- **Groq**: Ultra-fast LLM inference
+- **HuggingFace**: FinBERT sentiment model
+- **LangGraph**: Agent orchestration framework
