@@ -1,203 +1,661 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nexus Agent Dashboard</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        .tab-active { border-bottom: 2px solid #3b82f6; color: #3b82f6; background: rgba(59, 130, 246, 0.1); }
-        .hidden-section { display: none !important; }
-    </style>
-</head>
-<body class="bg-gray-900 text-gray-100 font-sans min-h-screen">
-    <nav class="bg-gray-800 border-b border-gray-700 px-6 py-4 flex justify-between items-center sticky top-0 z-50">
-        <div class="flex items-center space-x-3">
-            <div class="bg-blue-600 p-2 rounded-lg"><i class="fas fa-robot text-white text-xl"></i></div>
-            <h1 class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-emerald-400">Nexus Agent</h1>
-        </div>
-        <div class="flex items-center space-x-4">
-            <input type="password" id="secretKey" value="" placeholder="API Secret" class="bg-gray-900 border border-gray-700 rounded px-3 py-1 text-xs focus:ring-1 focus:ring-blue-500 outline-none">
-            <div id="connectionStatus" class="flex items-center text-emerald-400 text-sm">
-                <span class="w-2 h-2 bg-emerald-400 rounded-full animate-pulse mr-2"></span>Connected
-            </div>
-        </div>
-    </nav>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nexus AI Agent - Stock Analysis</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            dark: '#0B0F19',
+            card: '#111827',
+            card2: '#1F2937',
+            accent: '#22d3ee',
+            accent2: '#34d399',
+          },
+          animation: {
+            'pulse-slow': 'pulse 3s cubic-bezier(0.4,0,0.6,1) infinite',
+            'glow': 'glow 2s ease-in-out infinite alternate',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { background: #0B0F19; color: #E5E7EB; font-family: 'Inter', system-ui, sans-serif; }
+    .glass { background: rgba(31, 41, 55, 0.6); backdrop-filter: blur(12px); border: 1px solid rgba(148, 163, 184, 0.1); }
+    .glass-card { background: linear-gradient(135deg, rgba(31,41,55,0.9) 0%, rgba(17,24,39,0.95) 100%); border: 1px solid rgba(148,163,184,0.1); }
+    .gradient-text { background: linear-gradient(90deg, #22d3ee, #34d399); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .gradient-border { background: linear-gradient(90deg, #22d3ee, #34d399); border-radius: 2px; }
+    .btn-glow { box-shadow: 0 0 20px rgba(34, 211, 238, 0.3); }
+    .stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(34, 211, 238, 0.15); }
+    .recommendation-badge { animation: glow 2s ease-in-out infinite alternate; }
+    .sidebar-item:hover { background: rgba(34, 211, 238, 0.1); border-left-color: #22d3ee; }
+    .sidebar-item.active { background: rgba(34, 211, 238, 0.15); border-left-color: #22d3ee; }
+    .chart-container { position: relative; height: 300px; width: 100%; }
+    .sentiment-bar { transition: width 1s ease-out; }
+    .skeleton { background: linear-gradient(90deg, #1F2937 25%, #374151 50%, #1F2937 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px; }
+    @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+    @keyframes glow { from { box-shadow: 0 0 10px rgba(34,211,238,0.5); } to { box-shadow: 0 0 25px rgba(52,211,153,0.7); } }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #0B0F19; }
+    ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #4B5563; }
+    .message-user { background: rgba(34,211,238,0.15); border: 1px solid rgba(34,211,238,0.3); }
+    .message-ai { background: rgba(17,24,39,0.8); border: 1px solid rgba(148,163,184,0.15); }
+  </style>
+</head><body class="min-h-screen flex">
 
-    <div class="max-w-7xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <!-- Left Sidebar - Navigation Only -->
-        <div class="lg:col-span-4">
-            <div class="bg-gray-800 rounded-xl p-2 border border-gray-700 flex flex-col space-y-1">
-                <button onclick="switchTab('agent')" id="btn-agent" class="tab-active text-left px-4 py-3 rounded-lg transition-all flex items-center">
-                    <i class="fas fa-terminal mr-3 w-5 text-center"></i> Autonomous Agent
-                </button>
-                <button onclick="switchTab('finance')" id="btn-finance" class="text-left px-4 py-3 rounded-lg text-gray-400 hover:bg-gray-700 transition-all flex items-center">
-                    <i class="fas fa-chart-line mr-3 w-5 text-center"></i> Quant Analysis
-                </button>
-                <button onclick="switchTab('risk')" id="btn-risk" class="text-left px-4 py-3 rounded-lg text-gray-400 hover:bg-gray-700 transition-all flex items-center">
-                    <i class="fas fa-shield-alt mr-3 w-5 text-center"></i> Risk Detector
-                </button>
-                <button onclick="switchTab('metrics')" id="btn-metrics" class="text-left px-4 py-3 rounded-lg text-gray-400 hover:bg-gray-700 transition-all flex items-center">
-                    <i class="fas fa-tachometer-alt mr-3 w-5 text-center"></i> System Metrics
-                </button>
-            </div>
-        </div>
-
-        <!-- Right Column - Content Panels -->
-        <div class="lg:col-span-8">
-            <!-- Agent Panel -->
-            <div id="panel-agent" class="section-panel bg-gray-800 rounded-xl p-6 border border-gray-700 shadow-lg">
-                <h2 class="text-lg font-semibold mb-4">Agent Input</h2>
-                <textarea id="agentQuery" rows="4" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-sm outline-none focus:ring-1 focus:ring-blue-500" placeholder="Enter your query for the agent..."></textarea>
-                <button onclick="runAgent()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg mt-3">
-                    <i class="fas fa-play"></i><span> Run Agent</span>
-                </button>
-            </div>
-
-            <!-- Finance Panel -->
-            <div id="panel-finance" class="section-panel hidden-section bg-gray-800 rounded-xl p-6 border border-gray-700 shadow-lg">
-                <h2 class="text-lg font-semibold mb-4 text-emerald-400">Quant Parameters</h2>
-                <div class="space-y-4">
-                    <input id="finTicker" type="text" value="AAPL" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm outline-none focus:ring-1 focus:ring-emerald-500" placeholder="Stock Ticker">
-                    <select id="finPeriod" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm outline-none focus:ring-1 focus:ring-emerald-500">
-                        <option value="1mo">1 Month</option>
-                        <option value="6mo" selected>6 Months</option>
-                        <option value="1y">1 Year</option>
-                    </select>
-                    <button onclick="runFinance()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-lg">
-                        Analyze Stock
-                    </button>
-                </div>
-            </div>
-
-            <!-- Risk Panel -->
-            <div id="panel-risk" class="section-panel hidden-section bg-gray-800 rounded-xl p-6 border border-gray-700 shadow-lg">
-                <h2 class="text-lg font-semibold mb-4 text-orange-400">Risk Parameters</h2>
-                <div class="space-y-4">
-                    <textarea id="riskData" rows="4" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-sm" placeholder='Enter JSON observation data, e.g., [0.5, 1.2, -0.3]'></textarea>
-                    <button onclick="runRisk()" class="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 rounded-lg">
-                        Detect Anomaly
-                    </button>
-                </div>
-            </div>
-
-            <!-- Metrics Panel -->
-            <div id="panel-metrics" class="section-panel hidden-section bg-gray-800 rounded-xl p-6 border border-gray-700 shadow-lg">
-                <h2 class="text-lg font-semibold mb-4">System Metrics</h2>
-                <div class="grid grid-cols-2 gap-4 text-center">
-                    <div class="bg-gray-900 p-3 rounded-lg border border-gray-700">
-                        <p class="text-xs text-gray-400">API Calls</p>
-                        <p id="statCalls" class="text-2xl font-bold text-blue-400">0</p>
-                    </div>
-                    <div class="bg-gray-900 p-3 rounded-lg border border-gray-700">
-                        <p class="text-xs text-gray-400">Uptime</p>
-                        <p id="statUptime" class="text-2xl font-bold text-emerald-400">0s</p>
-                    </div>
-                </div>
-            </div>
-        </div>
+<!-- Sidebar -->
+<aside class="w-16 md:w-64 glass-card flex-shrink-0 flex flex-col transition-all duration-300" id="sidebar">
+  <div class="p-4 md:p-6 flex items-center space-x-3">
+    <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-400 to-emerald-400 flex items-center justify-center">
+      <i class="fas fa-bolt text-dark text-sm"></i>
     </div>
-
-    <!-- Terminal Output -->
-    <div class="max-w-7xl mx-auto p-6 pt-0">
-        <div class="bg-gray-800 rounded-xl p-6 border border-gray-700 shadow-lg">
-            <div class="flex justify-between items-center mb-3">
-                <h2 class="text-lg font-semibold">Terminal Output</h2>
-                <button onclick="document.getElementById('console').innerHTML='<div class=\"text-gray-500 mb-2\">System initialized...</div>'" class="text-xs bg-gray-700 px-3 py-1 rounded hover:bg-gray-600">
-                    Clear
-                </button>
-            </div>
-            <div id="console" class="bg-black rounded-lg p-4 h-80 overflow-y-auto font-mono text-sm">
-                <div class="text-gray-500 mb-2">System initialized...</div>
-            </div>
-            <div id="loader" class="hidden flex items-center justify-center mt-3">
-                <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
-                <span class="ml-2 text-sm text-gray-400">Processing...</span>
-            </div>
-        </div>
+    <span class="text-lg font-bold gradient-text hidden md:block">Nexus AI</span>
+  </div>
+  
+  <nav class="flex-1 mt-6">
+    <a href="#" class="sidebar-item active pl-4 md:pl-6 py-3 flex items-center space-x-3 cursor-pointer" onclick="showSection('dashboard')">
+      <i class="fas fa-chart-line w-5"></i>
+      <span class="hidden md:block">Dashboard</span>
+    </a>
+    <a href="#" class="sidebar-item pl-4 md:pl-6 py-3 flex items-center space-x-3 cursor-pointer" onclick="showSection('chat')">
+      <i class="fas fa-comments w-5"></i>
+      <span class="hidden md:block">AI Assistant</span>
+    </a>
+    <a href="#" class="sidebar-item pl-4 md:pl-6 py-3 flex items-center space-x-3 cursor-pointer" onclick="showSection('agent')">
+      <i class="fas fa-robot w-5"></i>
+      <span class="hidden md:block">Auto Agent</span>
+    </a>
+    <a href="#" class="sidebar-item pl-4 md:pl-6 py-3 flex items-center space-x-3 cursor-pointer" onclick="showSection('tech')">
+      <i class="fas fa-code-branch w-5"></i>
+      <span class="hidden md:block">Tech Info</span>
+    </a>
+  </nav>
+  
+  <div class="p-4 hidden md:block">
+    <div class="glass rounded-lg p-3">
+      <p class="text-xs text-gray-400 mb-1">Status</p>
+      <div class="flex items-center space-x-2">
+        <div class="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>
+        <span class="text-sm text-emerald-400">Running</span>
+      </div>
+      <p class="text-xs text-gray-500 mt-2">v4.0.0</p>
     </div>
+  </div>
+</aside>
+<!-- Main Content -->
+<main class="flex-1 flex flex-col overflow-hidden">
+  
+  <!-- Top Bar -->
+  <header class="glass border-b border-gray-800/50 px-6 py-4 flex justify-between items-center">
+    <div>
+      <h1 class="text-xl font-bold text-white">Stock Analysis <span class="gradient-text">Dashboard</span></h1>
+      <p class="text-xs text-gray-400 mt-1">AI-powered insights in seconds</p>
+    </div>
+    <div class="flex items-center space-x-4">
+      <input type="password" id="secretKey" placeholder="API Secret" class="glass px-3 py-2 rounded-lg text-sm text-gray-300 bg-transparent border border-gray-700 focus:border-cyan-500 outline-none w-32 md:w-48 transition-all">
+      <button id="btn-search" class="btn-glow bg-gradient-to-r from-cyan-500 to-emerald-500 text-dark font-bold px-5 py-2 rounded-lg text-sm hover:from-cyan-400 hover:to-emerald-400 transition-all flex items-center space-x-2" onclick="searchStock()">
+        <i class="fas fa-search"></i><span>Search</span>
+      </button>
+    </div>
+  </header>
 
-    <script>
-        function switchTab(tab) {
-            document.querySelectorAll('.section-panel').forEach(p => p.classList.add('hidden-section'));
-            document.querySelectorAll('[id^="btn-"]').forEach(b => b.classList.remove('tab-active', 'text-blue-500'));
-            document.querySelectorAll('[id^="btn-"]').forEach(b => b.classList.add('text-gray-400'));
-            document.getElementById('panel-' + tab).classList.remove('hidden-section');
-            document.getElementById('btn-' + tab).classList.add('tab-active');
-            document.getElementById('btn-' + tab).classList.remove('text-gray-400');
+  <!-- Content Area -->
+  <div class="flex-1 overflow-auto p-4 md:p-6">
+    
+    <!-- DASHBOARD SECTION -->
+    <section id="sec-dashboard" class="space-y-6">
+      
+      <!-- Hero Search -->
+      <div class="glass-card rounded-2xl p-6 md:p-8 text-center">
+        <h2 class="text-2xl md:text-3xl font-bold mb-4">Analyze Any Stock <span class="gradient-text">Instantly</span></h2>
+        <div class="flex flex-col md:flex-row items-center justify-center gap-3 max-w-2xl mx-auto">
+          <input type="text" id="tickerInput" placeholder="Enter ticker symbol (e.g., AAPL, TSLA, NVDA)" class="flex-1 w-full glass px-4 py-3 rounded-xl text-lg bg-transparent border border-gray-700 focus:border-cyan-500 outline-none text-white placeholder-gray-500 transition-all" onkeypress="if(event.key==='Enter')searchStock()">
+          <button class="btn-glow bg-gradient-to-r from-cyan-500 to-emerald-500 text-dark font-bold px-8 py-3 rounded-xl text-base hover:from-cyan-400 hover:to-emerald-400 transition-all" onclick="searchStock()">
+            <i class="fas fa-search mr-2"></i>Analyze
+          </button>
+        </div>
+        <div class="flex flex-wrap justify-center gap-2 mt-4">
+          <span class="text-xs text-gray-500">Popular:</span>
+          <button class="text-xs px-3 py-1 rounded-full bg-gray-800 hover:bg-cyan-900/50 text-gray-400 hover:text-cyan-400 transition-all cursor-pointer" onclick="setTicker('AAPL')">AAPL</button>
+          <button class="text-xs px-3 py-1 rounded-full bg-gray-800 hover:bg-cyan-900/50 text-gray-400 hover:text-cyan-400 transition-all cursor-pointer" onclick="setTicker('TSLA')">TSLA</button>
+          <button class="text-xs px-3 py-1 rounded-full bg-gray-800 hover:bg-cyan-900/50 text-gray-400 hover:text-cyan-400 transition-all cursor-pointer" onclick="setTicker('NVDA')">NVDA</button>
+          <button class="text-xs px-3 py-1 rounded-full bg-gray-800 hover:bg-cyan-900/50 text-gray-400 hover:text-cyan-400 transition-all cursor-pointer" onclick="setTicker('MSFT')">MSFT</button>
+          <button class="text-xs px-3 py-1 rounded-full bg-gray-800 hover:bg-cyan-900/50 text-gray-400 hover:text-cyan-400 transition-all cursor-pointer" onclick="setTicker('GOOGL')">GOOGL</button>
+        </div>
+      </div>
+      <!-- Results (hidden initially) -->
+      <div id="resultsArea" class="hidden space-y-6">
+        
+        <!-- Ticker Header + Recommendation -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div class="md:col-span-3 glass-card rounded-2xl p-5 flex items-center justify-between">
+            <div>
+              <h3 class="text-2xl font-bold text-white" id="res-ticker">--</h3>
+              <p class="text-sm text-gray-400" id="res-company">Searching...</p>
+            </div>
+            <div class="text-right">
+              <p class="text-3xl font-bold text-white" id="res-price">--</p>
+              <p id="res-change" class="text-sm">--</p>
+            </div>
+          </div>
+          <div class="glass-card rounded-2xl p-5 flex items-center justify-center">
+            <div class="text-center">
+              <p class="text-xs text-gray-400 uppercase tracking-wider mb-1">Signal</p>
+              <div id="res-rec" class="text-2xl font-bold recommendation-badge rounded-lg px-4 py-2 inline-block">--</div>
+              <p class="text-xs text-gray-500 mt-1" id="res-confidence">Confidence: --</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Metric Cards -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div class="stat-card glass-card rounded-xl p-4 transition-all cursor-pointer">
+            <div class="flex items-center space-x-3 mb-2">
+              <div class="w-8 h-8 rounded-lg bg-cyan-500/20 flex items-center justify-center"><i class="fas fa-chart-bar text-cyan-400"></i></div>
+              <span class="text-xs text-gray-400">RSI (14)</span>
+            </div>
+            <p class="text-xl font-bold text-white" id="met-rsi">--</p>
+          </div>
+          <div class="stat-card glass-card rounded-xl p-4 transition-all cursor-pointer">
+            <div class="flex items-center space-x-3 mb-2">
+              <div class="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center"><i class="fas fa-chart-line text-emerald-400"></i></div>
+              <span class="text-xs text-gray-400">Volatility</span>
+            </div>
+            <p class="text-xl font-bold text-white" id="met-vol">--</p>
+          </div>
+          <div class="stat-card glass-card rounded-xl p-4 transition-all cursor-pointer">
+            <div class="flex items-center space-x-3 mb-2">
+              <div class="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center"><i class="fas fa-shield-alt text-purple-400"></i></div>
+              <span class="text-xs text-gray-400">Risk Score</span>
+            </div>
+            <p class="text-xl font-bold text-white" id="met-risk">--</p>
+          </div>
+          <div class="stat-card glass-card rounded-xl p-4 transition-all cursor-pointer">
+            <div class="flex items-center space-x-3 mb-2">
+              <div class="w-8 h-8 rounded-lg bg-orange-500/20 flex items-center justify-center"><i class="fas fa-bolt text-orange-400"></i></div>
+              <span class="text-xs text-gray-400">Trend</span>
+            </div>
+            <p class="text-xl font-bold text-white" id="met-trend">--</p>
+          </div>
+        </div>
+        <!-- Chart + Sentiment + News (3 columns) -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <!-- Chart -->
+          <div class="lg:col-span-2 glass-card rounded-2xl p-5">
+            <div class="flex items-center justify-between mb-4">
+              <h4 class="font-bold"><i class="fas fa-chart-area text-cyan-400 mr-2"></i>Price Chart</h4>
+              <div class="flex space-x-1">
+                <button class="text-xs px-2 py-1 rounded bg-gray-800 hover:bg-cyan-900/50 text-gray-400 transition-all" onclick="loadChart('1mo')">1M</button>
+                <button class="text-xs px-2 py-1 rounded bg-cyan-600/30 text-cyan-400" onclick="loadChart('6mo')">6M</button>
+                <button class="text-xs px-2 py-1 rounded bg-gray-800 hover:bg-cyan-900/50 text-gray-400 transition-all" onclick="loadChart('1y')">1Y</button>
+              </div>
+            </div>
+            <div class="chart-container" id="chartWrapper">
+              <canvas id="stockChart"></canvas>
+            </div>
+          </div>
+          
+          <!-- Sentiment -->
+          <div class="glass-card rounded-2xl p-5">
+            <h4 class="font-bold mb-4"><i class="fas fa-brain text-emerald-400 mr-2"></i>Sentiment</h4>
+            <div class="mb-4">
+              <div class="flex items-center justify-between mb-1">
+                <span class="text-xs text-emerald-400">Positive</span>
+                <span class="text-xs text-gray-400" id="sent-pos-pct">0%</span>
+              </div>
+              <div class="h-2 bg-gray-800 rounded-full overflow-hidden">
+                <div class="h-full bg-emerald-500 sentiment-bar" id="sent-pos-bar" style="width:0%"></div>
+              </div>
+            </div>
+            <div class="mb-4">
+              <div class="flex items-center justify-between mb-1">
+                <span class="text-xs text-red-400">Negative</span>
+                <span class="text-xs text-gray-400" id="sent-neg-pct">0%</span>
+              </div>
+              <div class="h-2 bg-gray-800 rounded-full overflow-hidden">
+                <div class="h-full bg-red-500 sentiment-bar" id="sent-neg-bar" style="width:0%"></div>
+              </div>
+            </div>
+            <div>
+              <div class="flex items-center justify-between mb-1">
+                <span class="text-xs text-yellow-400">Neutral</span>
+                <span class="text-xs text-gray-400" id="sent-neu-pct">0%</span>
+              </div>
+              <div class="h-2 bg-gray-800 rounded-full overflow-hidden">
+                <div class="h-full bg-yellow-500 sentiment-bar" id="sent-neu-bar" style="width:0%"></div>
+              </div>
+            </div>
+            <div class="mt-4 pt-4 border-t border-gray-800">
+              <p class="text-xs text-gray-400">Overall:</p>
+              <p class="text-lg font-bold" id="sent-verdict">--</p>
+            </div>
+          </div>
+        </div>
+        <!-- AI Explanation + Recommendations -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <!-- AI Explanation -->
+          <div class="glass-card rounded-2xl p-5">
+            <h4 class="font-bold mb-3"><i class="fas fa-robot text-cyan-400 mr-2"></i>AI Analysis</h4>
+            <p class="text-sm text-gray-300 leading-relaxed" id="ai-explanation">
+              <span class="text-gray-500">Search for a stock to see AI-powered analysis...</span>
+            </p>
+            <div id="reasons-list" class="mt-4 space-y-2"></div>
+          </div>
+          
+          <!-- News -->
+          <div class="glass-card rounded-2xl p-5">
+            <h4 class="font-bold mb-3"><i class="fas fa-newspaper text-emerald-400 mr-2"></i>Recent News</h4>
+            <div id="news-list" class="space-y-2">
+              <p class="text-sm text-gray-500 text-center py-4">Search for a stock to see news...</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recommendation Reasons -->
+        <div class="glass-card rounded-2xl p-5">
+          <h4 class="font-bold mb-3"><i class="fas fa-lightbulb text-yellow-400 mr-2"></i>Key Insights</h4>
+          <div id="insights-list" class="flex flex-wrap gap-2">
+            <span class="text-sm text-gray-500">No analysis yet. Search for a stock above.</span>
+          </div>
+        </div>
+      </div>
+      <!-- End Results -->
+      
+      <!-- Loading -->
+      <div id="loadingArea" class="hidden text-center py-12">
+        <div class="inline-block w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p class="text-gray-400 animate-pulse">Analyzing market data...</p>
+      </div>
+      
+    </section>
+    <!-- End Dashboard -->
+    <!-- CHAT SECTION -->
+    <section id="sec-chat" class="hidden h-full flex flex-col">
+      <div class="glass-card rounded-2xl p-6 flex flex-col h-full" style="min-height: 600px;">
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center space-x-3">
+            <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-400 to-emerald-400 flex items-center justify-center">
+              <i class="fas fa-comments text-dark text-sm"></i>
+            </div>
+            <div>
+              <h3 class="font-bold">AI Assistant</h3>
+              <p class="text-xs text-gray-500">Ask anything about stocks</p>
+            </div>
+          </div>
+          <span class="text-xs bg-cyan-900/50 text-cyan-400 px-3 py-1 rounded-full">Powered by Groq LLM</span>
+        </div>
+        
+        <div id="chat-messages" class="flex-1 overflow-auto space-y-3 mb-4 p-2" style="min-height: 400px;">
+          <div class="message-ai rounded-xl p-3 max-w-[85%]">
+            <p class="text-xs text-cyan-400 mb-1">Nexus AI</p>
+            <p class="text-sm text-gray-300">Hi! I can help you understand any stock. Try asking:
+              <br>• "Why is Tesla stock volatile?"
+              <br>• "Summarize Apple's recent performance"
+              <br>• "What's the outlook for Nvidia?"</p>
+          </div>
+        </div>
+        
+        <div class="flex space-x-2">
+          <input type="text" id="chat-input" placeholder="Ask about a stock..." class="flex-1 glass px-4 py-3 rounded-xl bg-transparent border border-gray-700 focus:border-cyan-500 outline-none text-white placeholder-gray-500" onkeypress="if(event.key==='Enter')sendChat()">
+          <button class="btn-glow bg-gradient-to-r from-cyan-500 to-emerald-500 text-dark font-bold px-5 rounded-xl hover:from-cyan-400 hover:to-emerald-400 transition-all" onclick="sendChat()">
+            <i class="fas fa-paper-plane"></i>
+          </button>
+        </div>
+      </div>
+    </section>
+    <!-- AUTO AGENT SECTION -->
+    <section id="sec-agent" class="hidden">
+      <div class="glass-card rounded-2xl p-6">
+        <div class="flex items-center space-x-3 mb-4">
+          <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center">
+            <i class="fas fa-robot text-dark text-sm"></i>
+          </div>
+          <div>
+            <h3 class="font-bold">Autonomous Agent</h3>
+            <p class="text-xs text-gray-500">LangGraph-powered task routing</p>
+          </div>
+        </div>
+        <textarea id="agent-input" placeholder="Describe a task... (e.g., 'Analyze Apple stock and summarize findings')" class="w-full glass px-4 py-3 rounded-xl bg-transparent border border-gray-700 focus:border-purple-500 outline-none text-white placeholder-gray-500 resize-y" rows="3"></textarea>
+        <div class="flex items-center space-x-3 mt-3">
+          <button class="btn-glow bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold px-5 py-2 rounded-lg text-sm hover:from-purple-400 hover:to-pink-400 transition-all" onclick="runAgent()">
+            <i class="fas fa-play mr-2"></i>Run Agent
+          </button>
+          <span id="agent-status" class="text-xs text-gray-500">Ready</span>
+        </div>
+        <div id="agent-output" class="mt-4 glass rounded-xl p-4 min-h-[200px] text-sm text-gray-300 whitespace-pre-wrap bg-dark/50">
+          <span class="text-gray-600">Agent output will appear here...</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- TECH INFO SECTION -->
+    <section id="sec-tech" class="hidden">
+      <div class="space-y-4">
+        <div class="glass-card rounded-2xl p-6">
+          <div class="flex items-center space-x-3 mb-4">
+            <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-400 to-cyan-400 flex items-center justify-center">
+              <i class="fas fa-code-branch text-dark text-sm"></i>
+            </div>
+            <div>
+              <h3 class="font-bold">Technical Architecture</h3>
+              <p class="text-xs text-gray-500">For data science interviewers</p>
+            </div>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="tech-content">
+            <p class="text-gray-500 text-center py-8">Loading technical details...</p>
+          </div>
+        </div>
+        <div class="glass-card rounded-2xl p-6">
+          <h4 class="font-bold mb-3"><i class="fas fa-network-wired text-blue-400 mr-2"></i>API Documentation</h4>
+          <p class="text-sm text-gray-400 mb-3">Swagger docs available at: <code class="bg-gray-800 px-2 py-1 rounded text-cyan-400">/docs</code></p>
+          <div class="space-y-2 text-sm">
+            <div class="flex justify-between p-2 bg-gray-900/50 rounded"><span class="text-cyan-400">GET /dashboard/{ticker}</span><span class="text-gray-500">Full dashboard data</span></div>
+            <div class="flex justify-between p-2 bg-gray-900/50 rounded"><span class="text-cyan-400">GET /chart/{ticker}</span><span class="text-gray-500">Chart data w/ MAs</span></div>
+            <div class="flex justify-between p-2 bg-gray-900/50 rounded"><span class="text-cyan-400">POST /chat</span><span class="text-gray-500">AI chat assistant</span></div>
+            <div class="flex justify-between p-2 bg-gray-900/50 rounded"><span class="text-cyan-400">GET /tech-info</span><span class="text-gray-500">Architecture overview</span></div>
+            <div class="flex justify-between p-2 bg-gray-900/50 rounded"><span class="text-cyan-400">POST /analyze/finance</span><span class="text-gray-500">Quant analysis</span></div>
+            <div class="flex justify-between p-2 bg-gray-900/50 rounded"><span class="text-cyan-400">POST /detect/risk</span><span class="text-gray-500">Risk detection</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+    
+  </div>
+</main>
+
+<!-- Footer -->
+<footer class="fixed bottom-0 left-0 right-0 glass text-xs text-gray-500 px-6 py-2 flex justify-between border-t border-gray-800/50">
+  <span>Nexus AI Agent v4.0.0 | For educational purposes only. Not financial advice.</span>
+  <span class="hidden md:inline">Built with FastAPI + LangGraph + Groq LLM</span>
+</footer>
+
+<!-- Chart.js -->
+<script>
+  let chartInstance = null;
+  let currentChartPeriod = '6mo';
+  let chartData = {};
+
+  // UI Functions
+  function showSection(section) {
+    document.querySelectorAll('section').forEach(s => s.classList.add('hidden'));
+    document.getElementById('sec-' + section).classList.remove('hidden');
+    document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
+    event.currentTarget.classList.add('active');
+    if (section === 'tech') loadTechInfo();
+  }
+
+  function setTicker(ticker) {
+    document.getElementById('tickerInput').value = ticker;
+  }
+
+  function getSecret() {
+    return document.getElementById('secretKey').value || '';
+  }
+
+  async function searchStock() {
+    const ticker = document.getElementById('tickerInput').value.trim().toUpperCase();
+    if (!ticker) return;
+    
+    showLoading(true);
+    document.getElementById('resultsArea').classList.add('hidden');
+    
+    try {
+      const [dashboard, chart] = await Promise.all([
+        fetch('/dashboard/' + ticker).then(r => r.json()).catch(() => null),
+        fetch('/chart/' + ticker + '?period=' + currentChartPeriod).then(r => r.json()).catch(() => ({dates:[],close:[]}))
+      ]);
+      
+      updateDashboard(dashboard);
+      chartData = chart;
+      renderChart();
+      
+    } catch(e) {
+      setError('Failed to fetch data: ' + e.message);
+    }
+    
+    showLoading(false);
+    document.getElementById('resultsArea').classList.remove('hidden');
+  }
+
+  function showLoading(show) {
+    const btn = document.getElementById('btn-search');
+    btn.disabled = show;
+    btn.style.opacity = show ? '0.6' : '1';
+    document.getElementById('loadingArea').classList.toggle('hidden', !show);
+  }
+
+  function setError(msg) {
+    document.getElementById('res-ticker').textContent = 'Error';
+    document.getElementById('res-company').textContent = msg;
+  }
+
+  function updateDashboard(d) {
+    if (!d || d.detail) {
+      setError(d ? d.detail : 'No data available');
+      return;
+    }
+    
+    // Ticker + Price
+    document.getElementById('res-ticker').textContent = d.ticker || '--';
+    document.getElementById('res-company').textContent = d.company_name || '--';
+    
+    const ps = d.price_summary || {};
+    const price = ps.current_price;
+    const change = ps.daily_change_pct;
+    document.getElementById('res-price').textContent = price ? '$' + price.toFixed(2) : '--';
+    
+    const changeEl = document.getElementById('res-change');
+    if (change !== null && change !== undefined) {
+      const sign = change >= 0 ? '+' : '';
+      const color = change >= 0 ? 'text-emerald-400' : 'text-red-400';
+      const icon = change >= 0 ? '<i class="fas fa-arrow-up"></i>' : '<i class="fas fa-arrow-down"></i>';
+      changeEl.innerHTML = '<span class="' + color + '">' + icon + ' ' + sign + change.toFixed(2) + '%</span>';
+    } else {
+      changeEl.textContent = '--';
+    }
+    
+    // Recommendation
+    const rec = d.recommendation || {};
+    const recEl = document.getElementById('res-rec');
+    recEl.textContent = rec.label || '--';
+    recEl.className = 'text-2xl font-bold rounded-lg px-4 py-2 inline-block recommendation-badge ' + (rec.color === 'green' ? 'bg-emerald-600' : rec.color === 'red' ? 'bg-red-600' : rec.color === 'orange' ? 'bg-orange-600' : 'bg-yellow-600');
+    document.getElementById('res-confidence').textContent = 'Confidence: ' + (rec.confidence || 0).toFixed(0) + '%';
+    
+    // Metrics
+    const ind = d.indicators || {};
+    document.getElementById('met-rsi').textContent = ind.rsi_14 !== null && ind.rsi_14 !== undefined ? ind.rsi_14.toFixed(1) : '--';
+    document.getElementById('met-vol').textContent = ind.rolling_volatility ? (ind.rolling_volatility * 100).toFixed(1) + '%' : '--';
+    
+    const ml = d.ml_prediction || {};
+    document.getElementById('met-risk').textContent = ml.risk_score !== null && ml.risk_score !== undefined ? ml.risk_score.toFixed(2) : '--';
+    
+    const trend = ind.trend_signal || d.trend_summary?.direction || '--';
+    document.getElementById('met-trend').textContent = trend;
+    
+    // Sentiment
+    const sent = d.sentiment || {};
+    document.getElementById('sent-pos-pct').textContent = (sent.positive_pct || 0) + '%';
+    document.getElementById('sent-neg-pct').textContent = (sent.negative_pct || 0) + '%';
+    document.getElementById('sent-neu-pct').textContent = (sent.neutral_pct || 0) + '%';
+    setTimeout(() => {
+      document.getElementById('sent-pos-bar').style.width = (sent.positive_pct || 0) + '%';
+      document.getElementById('sent-neg-bar').style.width = (sent.negative_pct || 0) + '%';
+      document.getElementById('sent-neu-bar').style.width = (sent.neutral_pct || 0) + '%';
+    }, 100);
+    document.getElementById('sent-verdict').textContent = (sent.verdict || 'neutral').toUpperCase();
+    document.getElementById('sent-verdict').className = 'text-lg font-bold ' + (sent.verdict === 'bullish' ? 'text-emerald-400' : sent.verdict === 'bearish' ? 'text-red-400' : 'text-yellow-400');
+    
+    // AI Explanation
+    const expl = d.explanation || '';
+    document.getElementById('ai-explanation').innerHTML = expl ? expl.replace(/\n/g, '<br>') : '<span class="text-gray-500">No AI explanation available.</span>';
+    
+    // Recommendation Reasons
+    const reasonsDiv = document.getElementById('reasons-list');
+    const reasons = rec.reasons || [];
+    reasonsDiv.innerHTML = reasons.length ? reasons.map(r => '<p class="text-xs text-gray-300"><span class="text-cyan-400">>></span> ' + r + '</p>').join('') : '<p class="text-xs text-gray-500">No reasons available</p>';
+    
+    // Insights
+    const insightsDiv = document.getElementById('insights-list');
+    if (reasons.length) {
+      insightsDiv.innerHTML = reasons.map(r => '<span class="text-xs px-3 py-1.5 rounded-full bg-cyan-900/30 text-cyan-300 border border-cyan-800">' + r.substring(0, 40) + (r.length > 40 ? '...' : '') + '</span>').join('');
+    } else {
+      insightsDiv.innerHTML = '<span class="text-sm text-gray-500">No analysis yet</span>';
+    }
+    
+    // News
+    const newsDiv = document.getElementById('news-list');
+    const news = d.news || [];
+    if (news.length) {
+      newsDiv.innerHTML = news.slice(0, 5).map(n => {
+        const src = n.source || 'Unknown';
+        const title = n.title || n.headline || 'No title';
+        return '<a href="#" class="block p-2 rounded bg-gray-900/50 hover:bg-gray-800 transition-all"><p class="text-xs text-gray-400 mb-1">' + src + '</p><p class="text-sm text-gray-200">' + title + '</p></a>';
+      }).join('');
+    } else {
+      newsDiv.innerHTML = '<p class="text-sm text-gray-500 text-center py-4">No recent news available</p>';
+    }
+  }
+
+  function renderChart() {
+    if (chartInstance) chartInstance.destroy();
+    const ctx = document.getElementById('stockChart').getContext('2d');
+    
+    if (!chartData.dates || !chartData.dates.length) {
+      document.getElementById('chartWrapper').innerHTML = '<p class="text-gray-500 text-center py-8">No chart data available</p>';
+      return;
+    }
+    
+    chartInstance = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: chartData.dates,
+        datasets: [{
+          label: 'Price',
+          data: chartData.close,
+          borderColor: '#22d3ee',
+          backgroundColor: 'rgba(34, 211, 238, 0.1)',
+          borderWidth: 2,
+          fill: true,
+          tension: 0.3,
+          pointRadius: 0,
+          pointHoverRadius: 5,
+        }, {
+          label: 'MA20',
+          data: chartData.ma_20,
+          borderColor: '#34d399',
+          borderWidth: 1,
+          borderDash: [5, 5],
+          pointRadius: 0,
+          fill: false,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { display: true, labels: { color: '#9CA3AF', font: { size: 10 } } },
+          tooltip: { backgroundColor: 'rgba(17,24,39,0.95)', titleColor: '#22d3ee', bodyColor: '#E5E7EB', borderColor: 'rgba(34,211,238,0.3)', borderWidth: 1 }
+        },
+        scales: {
+          x: { grid: { color: 'rgba(55,65,81,0.3)' }, ticks: { color: '#9CA3AF', maxTicksLimit: 8, font: { size: 9 } } },
+          y: { grid: { color: 'rgba(55,65,81,0.3)' }, ticks: { color: '#9CA3AF', font: { size: 9 } } }
         }
+      }
+    });
+  }
 
-        function log(msg, type = 'info') {
-            const div = document.createElement('div');
-            const map = { info: 'text-gray-400', error: 'text-red-400', agent: 'text-blue-300', quant: 'text-emerald-300', risk: 'text-orange-300' };
-            div.className = (map[type] || 'text-white') + ' mb-2 leading-relaxed border-l-2 pl-3 border-current';
-            div.innerHTML = typeof msg === 'object' ? '<pre>' + JSON.stringify(msg, null, 2) + '</pre>' : msg.replace(/\n/g, '<br>');
-            const term = document.getElementById('console');
-            term.appendChild(div);
-            term.scrollTop = term.scrollHeight;
-        }
+  async function loadChart(period) {
+    currentChartPeriod = period;
+    const ticker = document.getElementById('tickerInput').value.trim().toUpperCase();
+    if (!ticker) return;
+    try {
+      const res = await fetch('/chart/' + ticker + '?period=' + period);
+      chartData = await res.json();
+      renderChart();
+    } catch(e) { console.error(e); }
+  }
 
-        async function api(path, body) {
-            const secret = document.getElementById('secretKey').value;
-            const loader = document.getElementById('loader');
-            loader.classList.remove('hidden');
-            try {
-                const res = await fetch(path, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ ...body, secret })
-                });
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.detail || 'API Error');
-                return data;
-            } catch (e) {
-                log(e.message, 'error');
-                return null;
-            } finally {
-                loader.classList.add('hidden');
-                updateStats();
-            }
-        }
+  async function sendChat() {
+    const input = document.getElementById('chat-input');
+    const msg = input.value.trim();
+    if (!msg) return;
+    
+    const chatDiv = document.getElementById('chat-messages');
+    chatDiv.innerHTML += '<div class="message-user rounded-xl p-3 mx-auto ml-auto max-w-[85%]"><p class="text-sm text-gray-100">' + msg + '</p></div>';
+    chatDiv.innerHTML += '<div id="chat-pending" class="message-ai rounded-xl p-3 max-w-[85%]"><p class="text-xs text-gray-500">Thinking...</p></div>';
+    chatDiv.scrollTop = chatDiv.scrollHeight;
+    input.value = '';
+    
+    try {
+      const res = await fetch('/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: msg, ticker: document.getElementById('tickerInput').value.trim().toUpperCase() })
+      });
+      const data = await res.json();
+      document.getElementById('chat-pending').remove();
+      chatDiv.innerHTML += '<div class="message-ai rounded-xl p-3 max-w-[85%]"><p class="text-xs text-cyan-400 mb-1">Nexus AI</p><p class="text-sm text-gray-300 leading-relaxed">' + (data.response || 'Sorry, I could not process that.').replace(/\n/g, '<br>') + '</p></div>';
+    } catch(e) {
+      document.getElementById('chat-pending').remove();
+      chatDiv.innerHTML += '<div class="message-ai rounded-xl p-3 max-w-[85%]"><p class="text-xs text-red-400 mb-1">Error</p><p class="text-sm text-gray-400">' + e.message + '</p></div>';
+    }
+    chatDiv.scrollTop = chatDiv.scrollHeight;
+  }
 
-        async function runAgent() {
-            const prompt = document.getElementById('agentQuery').value.trim();
-            if (!prompt) return;
-            log('> ' + prompt, 'info');
-            const data = await api('/agent/run', { prompt });
-            if (data) log(data.response, 'agent');
-        }
+  async function runAgent() {
+    const input = document.getElementById('agent-input');
+    const prompt = input.value.trim();
+    if (!prompt) return;
+    
+    document.getElementById('agent-status').textContent = 'Running...';
+    document.getElementById('agent-output').innerHTML = '<span class="text-gray-500 animate-pulse">Processing with LangGraph agent...</span>';
+    
+    try {
+      const res = await fetch('/agent/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: prompt })
+      });
+      const data = await res.json();
+      document.getElementById('agent-output').textContent = data.response || JSON.stringify(data, null, 2);
+    } catch(e) {
+      document.getElementById('agent-output').innerHTML = '<span class="text-red-400">Error: ' + e.message + '</span>';
+    }
+    document.getElementById('agent-status').textContent = 'Ready';
+  }
 
-        async function runFinance() {
-            const ticker = document.getElementById('finTicker').value;
-            const period = document.getElementById('finPeriod').value;
-            log(`> Quant Analysis: ${ticker}`, 'info');
-            const data = await api('/analyze/finance', { ticker, period });
-            if (data) log(data.explanation || data, 'quant');
-        }
-
-        async function runRisk() {
-            try {
-                const obs = JSON.parse(document.getElementById('riskData').value);
-                log('> Risk Analysis', 'info');
-                const data = await api('/detect/risk', { observation: obs });
-                if (data) log(data, 'risk');
-            } catch(e) {
-                log('Invalid JSON input', 'error');
-            }
-        }
-
-        async function updateStats() {
-            try {
-                const res = await fetch('/status');
-                const data = await res.json();
-                document.getElementById('statCalls').innerText = data.counters.total || 0;
-                document.getElementById('statUptime').innerText = data.uptime_seconds + 's';
-            } catch(e) {}
-        }
-
-        setInterval(updateStats, 5000);
-        updateStats();
-    </script>
+  async function loadTechInfo() {
+    const content = document.getElementById('tech-content');
+    try {
+      const res = await fetch('/tech-info');
+      const data = await res.json();
+      content.innerHTML = '';
+      
+      // Architecture card
+      content.innerHTML += '<div class="glass rounded-xl p-4"><h5 class="font-bold text-cyan-400 mb-2">" + data.architecture.pattern + "</h5><p class="text-xs text-gray-400">' + data.key_concepts.join('<br>') + '</p></div>';
+      
+      // ML Pipeline card
+      content.innerHTML += '<div class="glass rounded-xl p-4"><h5 class="font-bold text-emerald-400 mb-2">ML Pipeline</h5><p class="text-xs text-gray-400 mb-2"><strong>Models:</strong> " + data.ml_pipeline.models.join(', ') + '</p><p class="text-xs text-gray-400"><strong>Features:</strong> ' + data.ml_pipeline.features.slice(0, 4).join(', ') + '...</p></div>';
+      
+      // APIs card
+      content.innerHTML += '<div class="glass rounded-xl p-4"><h5 class="font-bold text-purple-400 mb-2">Stack</h5><p class="text-xs text-gray-400">' + data.apis_used.join(', ') + '</p></div>';
+      
+      // Design Patterns card
+      content.innerHTML += '<div class="glass rounded-xl p-4"><h5 class="font-bold text-orange-400 mb-2">Design Patterns</h5><p class="text-xs text-gray-400">' + data.design_patterns.join(', ') + '</p></div>';
+      
+    } catch(e) {
+      content.innerHTML = '<p class="text-red-400 text-center py-4">Failed to load: ' + e.message + '</p>';
+    }
+  }
+</script>
 </body>
 </html>
