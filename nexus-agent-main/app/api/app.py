@@ -13,7 +13,12 @@ from app.api.routes_technical import router as technical_router
 from app.config import settings
 from app.services.metrics import metrics_store
 
-STATIC_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
+# __file__ = nexus-agent-main/app/api/app.py
+# dirname x3 = nexus-agent-main/
+STATIC_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+    "static"
+)
 if not os.path.exists(STATIC_DIR):
     STATIC_DIR = None
 
@@ -51,11 +56,17 @@ app.include_router(monitoring_router)
 app.include_router(chat_router)
 app.include_router(technical_router)
 
-if STATIC_DIR and os.path.exists(STATIC_DIR):
+if STATIC_DIR:
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
-    @app.get("/")
-    def serve_index():
+
+@app.get("/")
+def serve_index():
+    if STATIC_DIR:
         index_path = os.path.join(STATIC_DIR, "index.html")
         if os.path.exists(index_path):
             return FileResponse(index_path)
-        return {"status": "running", "docs": "/docs"}
+    return {"message": "Nexus AI Agent API", "docs": "/docs", "version": settings.app_version}
+
+@app.get("/health")
+def health():
+    return {"status": "ok", "version": settings.app_version}
