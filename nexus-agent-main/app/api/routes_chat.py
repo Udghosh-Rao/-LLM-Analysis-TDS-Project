@@ -1,11 +1,9 @@
 from fastapi import APIRouter, HTTPException
 
 from app.api.schemas import ChatRequest, ChatResponse
-from app.config import settings
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
-
 router = APIRouter(tags=["Chat"])
 
 SYSTEM_PROMPT = """You are Nexus AI, a friendly and knowledgeable stock analysis assistant.
@@ -19,7 +17,6 @@ Key traits:
 - Never fabricate numbers or data you don't have
 - If unsure, say so politely"""
 
-
 @router.post("/chat", response_model=ChatResponse)
 async def chat_with_agent(request: ChatRequest):
     try:
@@ -27,14 +24,14 @@ async def chat_with_agent(request: ChatRequest):
         from app.services.groq_client import get_groq_llm
 
         llm = get_groq_llm(temperature=0.3)
-
         context_text = ""
+
         if request.context:
             ctx = request.context
             if "price_summary" in ctx:
                 ps = ctx["price_summary"]
-                context_text += f"Current price: ${ps.get('current_price', 'N/A')}"
-                context_text += f". Daily change: {ps.get('daily_change_pct', 'N/A')}%\n"
+                context_text += f"Current price: ${ps.get('current_price', 'N/A')}. "
+                context_text += f"Daily change: {ps.get('daily_change_pct', 'N/A')}%\n"
             if "indicators" in ctx:
                 ind = ctx["indicators"]
                 context_text += f"RSI: {ind.get('rsi_14', 'N/A')}, "
@@ -75,7 +72,7 @@ Answer:"""
         if llm is None:
             return ChatResponse(
                 response=f"LLM not available. Your question was: '{user_prompt}'. "
-                f"Please set GROQ_API_KEY to enable AI responses.",
+                        f"Please set GROQ_API_KEY to enable AI responses.",
                 ticker_mentioned=request.ticker,
             )
 
@@ -85,10 +82,8 @@ Answer:"""
         return ChatResponse(
             response=content.strip(),
             ticker_mentioned=request.ticker,
-            sources=["Groq LLM (llama-3.3-70b-versatile)"]
-            if llm else [],
+            sources=["Groq LLM (llama-3.3-70b-versatile)"] if llm else [],
         )
-
     except Exception as e:
         logger.error(f"Chat error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
