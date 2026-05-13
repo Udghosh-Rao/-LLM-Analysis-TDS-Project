@@ -1,11 +1,11 @@
-# 🚀 Nexus AI Agent
+#  Nexus AI Agent
 
 > **Autonomous AI Financial Research & Data Science Dashboard**  
 > A premium, full-stack AI platform combining LangGraph task routing, real-time financial data, machine learning anomaly detection, and a high-end React glassmorphic UI.
 
 ---
 
-## 🌟 Overview
+##  Overview
 
 Nexus AI Agent is a modern, production-ready AI product built to demonstrate advanced Data Science and AI Engineering concepts with a sleek, startup-quality aesthetic.
 
