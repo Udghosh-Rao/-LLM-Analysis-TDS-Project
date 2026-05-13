@@ -8,14 +8,21 @@ from fastapi.responses import FileResponse
 from app.api.routes_agent import router as agent_router
 from app.api.routes_finance import router as finance_router
 from app.api.routes_monitoring import router as monitoring_router
+from app.api.routes_chat import router as chat_router
+from app.api.routes_technical import router as technical_router
 from app.config import settings
 from app.services.metrics import metrics_store
+
+STATIC_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
+if not os.path.exists(STATIC_DIR):
+    STATIC_DIR = None
 
 app = FastAPI(
     title=settings.app_name,
     description=(
-        "Autonomous AI Quant Research & Risk Analysis Agent with LangGraph orchestration, "
-        "financial indicators, ML anomaly detection, and Groq-based explanation."
+        f"{settings.app_subtitle}. An AI-powered stock analysis assistant "
+        "with LangGraph orchestration, financial indicators, ML anomaly detection, "
+        "sentiment analysis, and natural language explanations."
     ),
     version=settings.app_version,
 )
@@ -28,50 +35,27 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Metrics Middleware
 @app.middleware("http")
-async def metrics_middleware(request: Request, call_next):
-    route = request.url.path
-    start = time.perf_counter()
-    metrics_store.inc("api_total_runs")
-    
-    try:
+async def track_metrics(request: Request, call_next):
+    path = request.url.path
+    with metrics_store.track_latency("api_routes", path):
         response = await call_next(request)
-        if response.status_code >= 400:
-            metrics_store.inc("api_failed_runs")
-        return response
-    except Exception:
+    if response.status_code >= 400:
         metrics_store.inc("api_failed_runs")
-        raise
-    finally:
-        elapsed_ms = (time.perf_counter() - start) * 1000
-        metrics_store.observe_latency(route, elapsed_ms)
+    metrics_store.inc("api_total_runs")
+    return response
 
-# API Routers
 app.include_router(agent_router)
 app.include_router(finance_router)
 app.include_router(monitoring_router)
+app.include_router(chat_router)
+app.include_router(technical_router)
 
-# UI Routes
-static_dir = os.path.join(os.getcwd(), "static")
-if not os.path.exists(static_dir):
-    # Fallback to relative path if cwd is not root
-    static_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "static")
-
-if os.path.exists(static_dir):
-    app.mount("/static", StaticFiles(directory=static_dir), name="static")
-
-@app.get("/")
-async def read_index():
-    index_path = os.path.join(static_dir, "index.html")
-    if os.path.exists(index_path):
-        return FileResponse(index_path)
-    return {
-        "message": "Nexus Agent API is running. UI index.html not found.",
-        "debug": {
-            "static_dir": static_dir,
-            "exists": os.path.exists(static_dir),
-            "cwd": os.getcwd(),
-            "file": __file__
-        }
-    }
+if STATIC_DIR and os.path.exists(STATIC_DIR):
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+    @app.get("/")
+    def serve_index():
+        index_path = os.path.join(STATIC_DIR, "index.html")
+        if os.path.exists(index_path):
+            return FileResponse(index_path)
+        return {"status": "running", "docs": "/docs"}
